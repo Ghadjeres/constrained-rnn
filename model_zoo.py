@@ -1,0 +1,32 @@
+from keras.engine import Input
+from keras.engine import Model
+from keras.engine import merge
+from keras.layers import Dropout, LSTM, Activation, TimeDistributed, Dense
+
+
+def constraint_lstm(timesteps, num_features, num_pitches, num_units_lstm, dropout_prob=0.2):
+    input_seq = Input((timesteps, num_features), name='input_seq')
+    constraint = Input((timesteps, num_features + 1), name='constraint')
+
+    repr_input = input_seq
+    repr_constraint = constraint
+
+    repr_input = LSTM(num_units_lstm, return_sequences=True)(repr_input)
+    repr_input = LSTM(num_units_lstm, return_sequences=False)(repr_input)
+
+    repr_constraint = LSTM(num_units_lstm, return_sequences=True)(repr_constraint)
+    repr_constraint = LSTM(num_units_lstm, return_sequences=False)(repr_constraint)
+
+    hidden_repr = merge([repr_input, repr_constraint], mode='concat')
+
+    # NN
+    hidden_repr = Dense(num_units_lstm, activation='relu')(hidden_repr)
+    hidden_repr = Dense(num_pitches)(hidden_repr)
+    preds = Activation('softmax', name='label')(hidden_repr)
+
+    model = Model(input=[input_seq, constraint], output=preds)
+
+    model.compile(optimizer='adam',
+                  loss={'label': 'categorical_crossentropy'},
+                  metrics=['accuracy'])
+    return model
