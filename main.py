@@ -4,7 +4,7 @@ import pickle
 import numpy as np
 from keras.callbacks import TensorBoard
 from keras.models import load_model
-from model_zoo import constraint_lstm
+from model_zoo import constraint_lstm, countdown_constraint_lstm
 from music21 import note, stream, duration
 
 SOP_INDEX = 0
@@ -12,6 +12,7 @@ START_SYMBOL = 'START'
 END_SYMBOL = 'END'
 SLUR_SYMBOL = '__'
 NO_CONSTRAINT = 'xx'
+EOS = 'EOS'
 SUBDIVISION = 4
 
 
@@ -120,7 +121,10 @@ class ConstraintModel:
                                  )
         self.model.save(self.filepath, overwrite=overwrite)
 
-    def generator(self, batch_size, phase, prob_constraint=0.05, percentage_train=0.8):
+    def generator(self, batch_size, phase, prob_constraint=0.2, percentage_train=0.8):
+        return self.generator_countdown(batch_size, phase, prob_constraint, percentage_train)
+
+    def generator_plain(self, batch_size, phase, prob_constraint=0.05, percentage_train=0.8):
         """
 
         :param prob_constraint:
@@ -210,17 +214,120 @@ class ConstraintModel:
                 labels = []
                 constraints = []
 
-    def create_model(self):
+    def generator_countdown(self, batch_size, phase, prob_constraint=0.05, percentage_train=0.8):
+        """
 
+        :param prob_constraint:
+        :param batch_size:
+        :param phase:
+        :param percentage_train:
+        :return:
+        """
+        X, voice_ids, index2notes, note2indexes, metadatas = pickle.load(open(self.dataset_filepath, 'rb'))
+        num_pitches = list(map(lambda x: len(x), index2notes))[SOP_INDEX]
+        num_voices = len(voice_ids)
+        # Set chorale_indices
+        if phase == 'train':
+            chorale_indices = np.arange(int(len(X) * percentage_train))
+        elif phase == 'test':
+            chorale_indices = np.arange(int(len(X) * percentage_train), len(X))
+        elif phase == 'all':
+            chorale_indices = np.arange(int(len(X)))
+        else:
+            NotImplementedError
+
+        input_seqs = []
+        labels = []
+        constraints = []
+        countdowns = []
+
+        batch = 0
+
+        while True:
+            chorale_index = np.random.choice(chorale_indices)
+            chorales = X[chorale_index]
+            if len(chorales) == 1:
+                continue
+
+            transposition_index = np.random.choice(len(chorales))
+            input_seq, _, offset_1 = np.array(chorales[transposition_index])
+
+            # pad with start and end symbols
+            padding_dimensions = (self.timesteps,)
+            start_symbols = np.array(list(map(lambda note2index: note2index[START_SYMBOL], note2indexes)))[SOP_INDEX]
+            end_symbols = np.array(list(map(lambda note2index: note2index[END_SYMBOL], note2indexes)))[SOP_INDEX]
+
+            input_seq = np.concatenate((np.full(padding_dimensions, start_symbols),
+                                        input_seq[SOP_INDEX],
+                                        np.full(padding_dimensions, end_symbols)),
+                                       axis=0)
+
+            chorale_length = len(input_seq)
+            time_index = np.random.randint(self.timesteps, chorale_length - self.timesteps)
+
+            constraint = input_seq[time_index + self.timesteps - 1: time_index - 1: -1]
+            label = input_seq[time_index]
+
+            # mask constraint with additional symbol
+            mask = np.random.rand(self.timesteps) > prob_constraint
+            for i in range(self.timesteps):
+                if mask[i]:
+                    constraint[i] = num_pitches
+            # to onehot
+            input_seq = np.array(list(map(lambda x: to_onehot(x, num_pitches), input_seq)))
+            input_seqs.append(input_seq[time_index - self.timesteps: time_index])
+
+            constraint = np.array(list(map(lambda x: to_onehot(x, num_pitches + 1), constraint)))
+            constraints.append(constraint)
+
+            countdown = np.array(
+                list(map(lambda x: to_onehot(x, self.timesteps), np.arange(self.timesteps - 1, -1, -1))))
+            countdowns.append(countdown)
+
+            labels.append(to_onehot(label, num_pitches))
+            batch += 1
+
+            # if there is a full batch
+            if batch == batch_size:
+                input_seqs = np.array(input_seqs)
+                constraints = np.array(constraints)
+                labels = np.array(labels)
+                countdowns = np.array(countdowns)
+
+                next_element = ({'input_seq': input_seqs,
+                                 'constraint': constraints,
+                                 'countdown': countdowns,
+                                 },
+                                {
+                                    'label': labels
+                                }
+                                )
+
+                yield next_element
+
+                batch = 0
+
+                input_seqs = []
+                labels = []
+                constraints = []
+                countdowns = []
+
+    def create_model(self):
         gen = self.generator(batch_size=1, phase='train')
         inputs = next(gen)
         num_features = inputs[0]['input_seq'].shape[-1]
         num_pitches = inputs[1]['label'].shape[-1]
-        return constraint_lstm(self.timesteps, num_features, num_pitches=num_pitches,
-                               num_units_lstm=256, dropout_prob=0.2)
+        if self.name == 'countdown_constraint':
+            return countdown_constraint_lstm(self.timesteps, num_features, num_pitches=num_pitches,
+                                             num_units_lstm=256, dropout_prob=0.2)
+        elif self.name == 'constraint':
+            return constraint_lstm(self.timesteps, num_features, num_pitches=num_pitches,
+                                   num_units_lstm=256, dropout_prob=0.2)
 
     def generate(self, seq_length=120):
         X, voice_ids, index2notes, note2indexes, metadatas = pickle.load(open(self.dataset_filepath, 'rb'))
+        countdown = np.array(
+            list(map(lambda x: to_onehot(x, self.timesteps), np.arange(self.timesteps - 1, -1, -1))))
 
         gen = self.generator(batch_size=1, phase='train')
         inputs = next(gen)
@@ -242,7 +349,8 @@ class ConstraintModel:
         # add constraints
         c_indexes = [16 + self.timesteps, 32 + self.timesteps, 48 + self.timesteps, 64 + self.timesteps]
         for c_index in c_indexes:
-            seq[c_index] = 13
+            seq[c_index] = 15
+        seq[64 + self.timesteps] = 32
 
         for time_index in range(self.timesteps, seq_length + self.timesteps):
             inputs = {'input_seq': chorale_to_onehot(chorale=seq[time_index - self.timesteps: time_index, None],
@@ -252,7 +360,8 @@ class ConstraintModel:
                           chorale=seq[time_index + self.timesteps - 1: time_index - 1: -1, None],
                           num_pitches=[num_pitches + 1],
                           time_major=True
-                      )[None, :, :]
+                      )[None, :, :],
+                      'countdown': countdown[None, :, :]
                       }
             preds = self.model.predict(inputs, batch_size=1)[0]
             print(time_index)
@@ -260,18 +369,16 @@ class ConstraintModel:
             new_pitch_index = np.random.choice(np.arange(num_pitches), p=preds)
             seq[time_index] = new_pitch_index
 
-
         indexed_seq_to_score(seq, index2notes[SOP_INDEX], note2indexes[SOP_INDEX]).show()
         return seq
 
 
 if __name__ == '__main__':
-    constraint_model = ConstraintModel('constraint')
-    constraint_model.train(batch_size=128,
-                           nb_epochs=50,
-                           samples_per_epoch=1024 * 20,
-                           nb_val_samples=1024 * 2,
-                           overwrite=True,
-                           percentage_train=0.9)
+    constraint_model = ConstraintModel('countdown_constraint')
+    # constraint_model.train(batch_size=128,
+    #                        nb_epochs=50,
+    #                        samples_per_epoch=1024 * 20,
+    #                        nb_val_samples=1024 * 2,
+    #                        overwrite=True,
+    #                        percentage_train=0.9)
     print(constraint_model.generate(100))
-
