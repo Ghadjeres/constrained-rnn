@@ -267,11 +267,11 @@ class ConstraintModel:
 
 if __name__ == '__main__':
     constraint_model = ConstraintModel('constraint')
-    # constraint_model.train(batch_size=128,
-    #                        nb_epochs=20,
-    #                        samples_per_epoch=1024 * 20,
-    #                        nb_val_samples=1024 * 2,
-    #                        overwrite=True,
-    #                        percentage_train=0.9)
+    constraint_model.train(batch_size=128,
+                           nb_epochs=50,
+                           samples_per_epoch=1024 * 20,
+                           nb_val_samples=1024 * 2,
+                           overwrite=True,
+                           percentage_train=0.9)
     print(constraint_model.generate(100))
 
