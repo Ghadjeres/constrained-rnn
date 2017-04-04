@@ -4,7 +4,7 @@ import pickle
 import numpy as np
 from keras.callbacks import TensorBoard
 from keras.models import load_model
-from model_zoo import constraint_lstm, countdown_constraint_lstm
+from model_zoo import constraint_lstm, countdown_constraint_lstm, simple_lstm
 from music21 import note, stream, duration
 
 SOP_INDEX = 0
@@ -121,7 +121,7 @@ class ConstraintModel:
                                  )
         self.model.save(self.filepath, overwrite=overwrite)
 
-    def generator(self, batch_size, phase, prob_constraint=0.2, percentage_train=0.8):
+    def generator(self, batch_size, phase, prob_constraint=0.3, percentage_train=0.8):
         return self.generator_countdown(batch_size, phase, prob_constraint, percentage_train)
 
     def generator_plain(self, batch_size, phase, prob_constraint=0.05, percentage_train=0.8):
@@ -323,6 +323,9 @@ class ConstraintModel:
         elif self.name == 'constraint':
             return constraint_lstm(self.timesteps, num_features, num_pitches=num_pitches,
                                    num_units_lstm=256, dropout_prob=0.2)
+        elif self.name == 'simple_lstm':
+            return simple_lstm(self.timesteps, num_features=num_features, num_pitches=num_pitches,
+                               num_units_lstm=128, dropout_prob=0.2)
 
     def generate(self, seq_length=120):
         X, voice_ids, index2notes, note2indexes, metadatas = pickle.load(open(self.dataset_filepath, 'rb'))
@@ -376,7 +379,7 @@ class ConstraintModel:
 if __name__ == '__main__':
     constraint_model = ConstraintModel('countdown_constraint')
     constraint_model.train(batch_size=128,
-                           nb_epochs=300,
+                           nb_epochs=50,
                            samples_per_epoch=1024 * 20,
                            nb_val_samples=1024 * 2,
                            overwrite=True,

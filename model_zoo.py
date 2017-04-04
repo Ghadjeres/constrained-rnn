@@ -31,7 +31,6 @@ def constraint_lstm(timesteps, num_features, num_pitches, num_units_lstm, dropou
     repr_input = LSTM(num_units_lstm, return_sequences=True)(repr_input)
     repr_input = LSTM(num_units_lstm, return_sequences=False)(repr_input)
 
-
     hidden_repr = merge([repr_input, repr_constraint], mode='concat')
 
     # NN
@@ -56,23 +55,43 @@ def countdown_constraint_lstm(timesteps, num_features, num_pitches, num_units_ls
     repr_constraint = constraint
 
     repr_constraint = LSTM(num_units_lstm, return_sequences=True)(repr_constraint)
+    repr_constraint = Dropout(dropout_prob)(repr_constraint)
     repr_constraint = LSTM(num_units_lstm, return_sequences=False)(repr_constraint)
     tiled_constraint = RepeatVector(timesteps)(repr_constraint)
 
-    repr_input = merge([repr_input, tiled_constraint, countdown], mode='concat', concat_axis=2)
+    output = merge([repr_input, tiled_constraint, countdown], mode='concat', concat_axis=2)
 
-    repr_input = LSTM(num_units_lstm, return_sequences=True)(repr_input)
-    repr_input = LSTM(num_units_lstm, return_sequences=False)(repr_input)
-
-
-    hidden_repr = merge([repr_input, repr_constraint], mode='concat')
+    output = LSTM(num_units_lstm, return_sequences=True)(output)
+    output = Dropout(dropout_prob)(output)
+    output = LSTM(num_units_lstm, return_sequences=False)(output)
 
     # NN
-    hidden_repr = Dense(num_units_lstm, activation='relu')(hidden_repr)
-    hidden_repr = Dense(num_pitches)(hidden_repr)
-    preds = Activation('softmax', name='label')(hidden_repr)
+    output = Dense(num_units_lstm, activation='relu')(output)
+    output = Dense(num_pitches)(output)
+    preds = Activation('softmax', name='label')(output)
 
     model = Model(input=[input_seq, constraint, countdown], output=preds)
+
+    model.compile(optimizer='adam',
+                  loss={'label': 'categorical_crossentropy'},
+                  metrics=['accuracy'])
+    return model
+
+
+def simple_lstm(timesteps, num_features, num_pitches, num_units_lstm, dropout_prob=0.2):
+    input_seq = Input((timesteps, num_features), name='input_seq')
+
+    repr_input = input_seq
+    repr_input = LSTM(num_units_lstm, return_sequences=True)(repr_input)
+    repr_input = Dropout(dropout_prob)(repr_input)
+    repr_input = LSTM(num_units_lstm, return_sequences=False)(repr_input)
+
+    # NN
+    output = Dense(num_units_lstm, activation='relu')(repr_input)
+    output = Dense(num_pitches)(output)
+    preds = Activation('softmax', name='label')(output)
+
+    model = Model(input=[input_seq], output=preds)
 
     model.compile(optimizer='adam',
                   loss={'label': 'categorical_crossentropy'},
