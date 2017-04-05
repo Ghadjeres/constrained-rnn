@@ -325,7 +325,7 @@ class ConstraintModel:
                                    num_units_lstm=256, dropout_prob=0.2)
         elif self.name == 'simple_lstm':
             return simple_lstm(self.timesteps, num_features=num_features, num_pitches=num_pitches,
-                               num_units_lstm=128, dropout_prob=0.2)
+                               num_units_lstm=256, dropout_prob=0.2)
 
     def generate(self, seq_length=120):
         X, voice_ids, index2notes, note2indexes, metadatas = pickle.load(open(self.dataset_filepath, 'rb'))
@@ -377,7 +377,8 @@ class ConstraintModel:
 
 
 if __name__ == '__main__':
-    constraint_model = ConstraintModel('countdown_constraint')
+    # constraint_model = ConstraintModel('countdown_constraint')
+    constraint_model = ConstraintModel('simple_lstm')
     constraint_model.train(batch_size=128,
                            nb_epochs=50,
                            samples_per_epoch=1024 * 20,
