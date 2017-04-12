@@ -150,21 +150,21 @@ class ConstraintModel(nn.Module):
 
         # constraints:
         # todo cuda??? variable???
-        h_c, c_c = Variable(torch.zeros(*hidden_dims_constraints)), Variable(torch.zeros(*hidden_dims_constraints))
+        h_c, c_c = Variable(torch.zeros(*hidden_dims_constraints).cuda()), Variable(torch.zeros(*hidden_dims_constraints).cuda())
         output_constraints = []
         for time_index in range(seq_length - 1, -1, -1):
             time_slice = seq_constraints[time_index]
             h_c, c_c = self.lstm_constraints(time_slice, (h_c, c_c))
             output_constraints.append(h_c)
         output_constraints.reverse()
-        output_constraints = output_constraints
+
         # generation:
         # todo c_g = c_c?
-        h_g, c_g = Variable(torch.zeros(*hidden_dims_gen)), Variable(torch.zeros(*hidden_dims_gen))
+        h_g, c_g = Variable(torch.zeros(*hidden_dims_gen).cuda()), Variable(torch.zeros(*hidden_dims_gen).cuda())
         output_gen = []
         for time_index in range(-1, seq_length - 1):
             if time_index == -1:
-                time_slice = Variable(torch.zeros(batch_size, num_features))
+                time_slice = Variable(torch.zeros(batch_size, num_features).cuda())
             else:
                 time_slice = seq[time_index]
             constraint = output_constraints[time_index + 1]
@@ -250,7 +250,7 @@ if __name__ == '__main__':
         # Variables.
         input_seq = Variable(torch.FloatTensor(input_seq).cuda(), requires_grad=True)
         constraint = Variable(torch.FloatTensor(constraint).cuda(), requires_grad=True)
-        input_seq_index = Variable(torch.from_numpy(input_seq_index))
+        input_seq_index = Variable(torch.from_numpy(input_seq_index).cuda())
 
         # Step 3. Run our forward pass.
         predictions = constraint_model((input_seq, constraint))
