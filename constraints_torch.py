@@ -1,4 +1,5 @@
 import pickle
+from itertools import islice
 
 import numpy as np
 import torch
@@ -6,6 +7,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
 from torch.autograd import Variable
+from tqdm import tqdm
 
 SOP_INDEX = 0
 dataset_filepath = 'bach_sop.pickle'
@@ -150,7 +152,8 @@ class ConstraintModel(nn.Module):
 
         # constraints:
         # todo cuda??? variable???
-        h_c, c_c = Variable(torch.zeros(*hidden_dims_constraints).cuda()), Variable(torch.zeros(*hidden_dims_constraints).cuda())
+        h_c, c_c = Variable(torch.zeros(*hidden_dims_constraints).cuda()), Variable(
+            torch.zeros(*hidden_dims_constraints).cuda())
         output_constraints = []
         for time_index in range(seq_length - 1, -1, -1):
             time_slice = seq_constraints[time_index]
@@ -192,6 +195,28 @@ class ConstraintModel(nn.Module):
             num_features *= s
         return num_features
 
+    def train(self, num_batches, epoch):
+        for sample_id, next_element in tqdm(enumerate(islice(generator_train, num_batches))):
+            input_seq = next_element['input_seq']
+            constraint = next_element['constraint']
+            input_seq_index = next_element['input_seq_index']
+
+            # todo requires_grad?
+            input_seq, constraint, input_seq_index = (
+                Variable(torch.FloatTensor(input_seq).cuda(), requires_grad=True),
+                Variable(torch.FloatTensor(constraint).cuda(), requires_grad=True),
+                Variable(torch.LongTensor(input_seq_index).cuda())
+            )
+            optimizer.zero_grad()
+            output = self((input_seq, constraint))
+            loss = mean_crossentropy_loss(output, input_seq_index)
+            loss.backward()
+            optimizer.step()
+
+        print('Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f}'.format(
+            epoch, num_batches, num_batches, num_batches, loss.data[0])
+        )
+
 
 def mean_crossentropy_loss(input_seq, output_seq):
     """
@@ -215,6 +240,7 @@ def mean_crossentropy_loss(input_seq, output_seq):
 
 if __name__ == '__main__':
     (seq_length, batch_size, num_features) = (32, 128, 53)
+    num_batches = 20
     constraint_model = ConstraintModel(num_features)
     constraint_model.cuda()
     print(constraint_model)
@@ -230,33 +256,29 @@ if __name__ == '__main__':
                                 )
 
     optimizer = optim.Adam(constraint_model.parameters())
-    for i in range(300):  # again, normally you would NOT do 300 epochs, it is toy data
-        print(i)
-        next_element = next(generator_train)
-        input_seq = next_element['input_seq']
-        constraint = next_element['constraint']
-        input_seq_index = next_element['input_seq_index']
 
+    for epoch in range(300):  # again, normally you would NOT do 300 epochs, it is toy data
+        constraint_model.train(num_batches=num_batches, epoch=epoch)
         # Step 1. Remember that Pytorch accumulates gradients.
         # We need to clear them out before each instance
-        constraint_model.zero_grad()
+        # constraint_model.zero_grad()
 
-        # todo to remove?
-        # Also, we need to clear out the hidden state of the LSTM,
-        # detaching it from its history on the last instance.
-        # constraint_model.hidden = constraint_model.init_hidden()
-
-        # Step 2. Get our inputs ready for the network, that is, turn them into
-        # Variables.
-        input_seq = Variable(torch.FloatTensor(input_seq).cuda(), requires_grad=True)
-        constraint = Variable(torch.FloatTensor(constraint).cuda(), requires_grad=True)
-        input_seq_index = Variable(torch.from_numpy(input_seq_index).cuda())
+        #
+        # # Also, we need to clear out the hidden state of the LSTM,
+        # # detaching it from its history on the last instance.
+        # # constraint_model.hidden = constraint_model.init_hidden()
+        #
+        # # Step 2. Get our inputs ready for the network, that is, turn them into
+        # # Variables.
+        # input_seq = Variable(torch.FloatTensor(input_seq).cuda(), requires_grad=True)
+        # constraint = Variable(torch.FloatTensor(constraint).cuda(), requires_grad=True)
+        # input_seq_index = Variable(torch.from_numpy(input_seq_index).cuda())
 
         # Step 3. Run our forward pass.
-        predictions = constraint_model((input_seq, constraint))
-
-        # Step 4. Compute the loss, gradients, and update the parameters by
-        #  calling optimizer.step()
-        loss = mean_crossentropy_loss(predictions, input_seq_index)
-        loss.backward()
-        optimizer.step()
+        # predictions = constraint_model((input_seq, constraint))
+        #
+        # # Step 4. Compute the loss, gradients, and update the parameters by
+        # #  calling optimizer.step()
+        # loss = mean_crossentropy_loss(predictions, input_seq_index)
+        # loss.backward()
+        # optimizer.step()
