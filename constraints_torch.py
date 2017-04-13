@@ -336,7 +336,7 @@ if __name__ == '__main__':
 
     optimizer = optim.Adam(constraint_model.parameters())
 
-    # constraint_model.load()
+    constraint_model.load()
     constraint_model.train_model(batches_per_epoch=batches_per_epoch, num_epochs=50, plot=True)
 
     constraint_model.save()
