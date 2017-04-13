@@ -2,13 +2,6 @@
 <project version="4">
   <component name="ChangeListManager">
     <list default="true" id="00214a79-1540-4f56-83be-1bac67563f9a" name="Default" comment="">
-      <change type="DELETED" beforePath="$PROJECT_DIR$/logs/events.out.tfevents.1490888447.Williams" afterPath="" />
-      <change type="DELETED" beforePath="$PROJECT_DIR$/logs/events.out.tfevents.1490888576.Williams" afterPath="" />
-      <change type="DELETED" beforePath="$PROJECT_DIR$/logs/events.out.tfevents.1490888607.Williams" afterPath="" />
-      <change type="DELETED" beforePath="$PROJECT_DIR$/logs/events.out.tfevents.1490888659.Williams" afterPath="" />
-      <change type="DELETED" beforePath="$PROJECT_DIR$/logs/events.out.tfevents.1490891342.Williams" afterPath="" />
-      <change type="DELETED" beforePath="$PROJECT_DIR$/logs/events.out.tfevents.1490891974.Williams" afterPath="" />
-      <change type="DELETED" beforePath="$PROJECT_DIR$/logs/events.out.tfevents.1490892169.Williams" afterPath="" />
       <change type="MODIFICATION" beforePath="$PROJECT_DIR$/.idea/workspace.xml" afterPath="$PROJECT_DIR$/.idea/workspace.xml" />
       <change type="MODIFICATION" beforePath="$PROJECT_DIR$/constraints_torch.py" afterPath="$PROJECT_DIR$/constraints_torch.py" />
     </list>
@@ -46,8 +39,8 @@
       <file leaf-file-name="constraints_torch.py" pinned="false" current-in-tab="true">
         <entry file="file://$PROJECT_DIR$/constraints_torch.py">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="431">
-              <caret line="249" column="26" lean-forward="false" selection-start-line="249" selection-start-column="26" selection-end-line="249" selection-end-column="26" />
+            <state relative-caret-position="326">
+              <caret line="135" column="17" lean-forward="true" selection-start-line="135" selection-start-column="17" selection-end-line="135" selection-end-column="17" />
               <folding>
                 <element signature="e#0#13#0" expanded="true" />
                 <element signature="e#605#3910#0" expanded="false" />
@@ -370,7 +363,14 @@
       <option name="project" value="LOCAL" />
       <updated>1492010659743</updated>
     </task>
-    <option name="localTasksCounter" value="2" />
+    <task id="LOCAL-00002" summary="add dynamic plots for training!">
+      <created>1492092265775</created>
+      <option name="number" value="00002" />
+      <option name="presentableId" value="LOCAL-00002" />
+      <option name="project" value="LOCAL" />
+      <updated>1492092265775</updated>
+    </task>
+    <option name="localTasksCounter" value="3" />
     <servers />
   </component>
   <component name="TodoView">
@@ -412,7 +412,8 @@
   </component>
   <component name="VcsManagerConfiguration">
     <MESSAGE value="add pytorch version" />
-    <option name="LAST_COMMIT_MESSAGE" value="add pytorch version" />
+    <MESSAGE value="add dynamic plots for training!" />
+    <option name="LAST_COMMIT_MESSAGE" value="add dynamic plots for training!" />
   </component>
   <component name="XDebuggerManager">
     <breakpoint-manager>
@@ -429,12 +430,12 @@
         </line-breakpoint>
         <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
           <url>file://$PROJECT_DIR$/constraints_torch.py</url>
-          <line>321</line>
+          <line>322</line>
           <option name="timeStamp" value="18" />
         </line-breakpoint>
         <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
           <url>file://$PROJECT_DIR$/constraints_torch.py</url>
-          <line>320</line>
+          <line>321</line>
           <option name="timeStamp" value="22" />
         </line-breakpoint>
       </breakpoints>
@@ -900,8 +901,8 @@
     </entry>
     <entry file="file://$PROJECT_DIR$/constraints_torch.py">
       <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="431">
-          <caret line="249" column="26" lean-forward="false" selection-start-line="249" selection-start-column="26" selection-end-line="249" selection-end-column="26" />
+        <state relative-caret-position="326">
+          <caret line="135" column="17" lean-forward="true" selection-start-line="135" selection-start-column="17" selection-end-line="135" selection-end-column="17" />
           <folding>
             <element signature="e#0#13#0" expanded="true" />
             <element signature="e#605#3910#0" expanded="false" />

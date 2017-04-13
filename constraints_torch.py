@@ -121,14 +121,15 @@ class ConstraintModel(nn.Module):
                  num_lstm_constraints_units=256,
                  num_lstm_generation_units=256,
                  num_units_linear=128,
-                 model_name='lstm_1_layer'):
+                 model_name='constraint_model',
+                 num_layers=1):
         super(ConstraintModel, self).__init__()
         # parameters
         self.num_features = num_features
         self.num_lstm_constraints_units = num_lstm_constraints_units
         self.num_lstm_generation_units = num_lstm_generation_units
         self.num_units_linear = num_units_linear
-        self.filepath = 'torch_models/' + model_name + '.h5'
+        self.filepath = f'torch_models/{model_name}_{num_layers}layer{"s" if num_layers > 0 else ""}.h5'
 
         # trainable parameters
         self.lstm_constraints = nn.LSTMCell(self.num_features + 1, self.num_lstm_constraints_units)
