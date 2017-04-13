@@ -24,7 +24,7 @@
       <file leaf-file-name="main.py" pinned="false" current-in-tab="false">
         <entry file="file://$PROJECT_DIR$/main.py">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="0">
+            <state relative-caret-position="-4104">
               <caret line="69" column="25" lean-forward="false" selection-start-line="69" selection-start-column="20" selection-end-line="69" selection-end-column="25" />
               <folding>
                 <element signature="e#0#9#0" expanded="true" />
@@ -39,11 +39,10 @@
       <file leaf-file-name="constraints_torch.py" pinned="false" current-in-tab="true">
         <entry file="file://$PROJECT_DIR$/constraints_torch.py">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="326">
-              <caret line="135" column="17" lean-forward="true" selection-start-line="135" selection-start-column="17" selection-end-line="135" selection-end-column="17" />
+            <state relative-caret-position="408">
+              <caret line="336" column="48" lean-forward="false" selection-start-line="336" selection-start-column="48" selection-end-line="336" selection-end-column="48" />
               <folding>
                 <element signature="e#0#13#0" expanded="true" />
-                <element signature="e#605#3910#0" expanded="false" />
               </folding>
             </state>
           </provider>
@@ -70,6 +69,7 @@
       <find>generato</find>
       <find>train</find>
       <find>accura</find>
+      <find>lstm_generation</find>
     </findStrings>
   </component>
   <component name="Git.Settings">
@@ -134,6 +134,20 @@
             </PATH_ELEMENT>
             <PATH_ELEMENT>
               <option name="myItemId" value="constraints" />
+              <option name="myItemType" value="com.intellij.ide.projectView.impl.nodes.PsiDirectoryNode" />
+            </PATH_ELEMENT>
+          </PATH>
+          <PATH>
+            <PATH_ELEMENT>
+              <option name="myItemId" value="constraints" />
+              <option name="myItemType" value="com.intellij.ide.projectView.impl.nodes.ProjectViewProjectNode" />
+            </PATH_ELEMENT>
+            <PATH_ELEMENT>
+              <option name="myItemId" value="constraints" />
+              <option name="myItemType" value="com.intellij.ide.projectView.impl.nodes.PsiDirectoryNode" />
+            </PATH_ELEMENT>
+            <PATH_ELEMENT>
+              <option name="myItemId" value="torch_models" />
               <option name="myItemType" value="com.intellij.ide.projectView.impl.nodes.PsiDirectoryNode" />
             </PATH_ELEMENT>
           </PATH>
@@ -370,7 +384,14 @@
       <option name="project" value="LOCAL" />
       <updated>1492092265775</updated>
     </task>
-    <option name="localTasksCounter" value="3" />
+    <task id="LOCAL-00003" summary="before refactor to multiple layers">
+      <created>1492092867581</created>
+      <option name="number" value="00003" />
+      <option name="presentableId" value="LOCAL-00003" />
+      <option name="project" value="LOCAL" />
+      <updated>1492092867581</updated>
+    </task>
+    <option name="localTasksCounter" value="4" />
     <servers />
   </component>
   <component name="TodoView">
@@ -413,7 +434,8 @@
   <component name="VcsManagerConfiguration">
     <MESSAGE value="add pytorch version" />
     <MESSAGE value="add dynamic plots for training!" />
-    <option name="LAST_COMMIT_MESSAGE" value="add dynamic plots for training!" />
+    <MESSAGE value="before refactor to multiple layers" />
+    <option name="LAST_COMMIT_MESSAGE" value="before refactor to multiple layers" />
   </component>
   <component name="XDebuggerManager">
     <breakpoint-manager>
@@ -430,56 +452,30 @@
         </line-breakpoint>
         <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
           <url>file://$PROJECT_DIR$/constraints_torch.py</url>
-          <line>322</line>
+          <line>358</line>
           <option name="timeStamp" value="18" />
         </line-breakpoint>
         <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
           <url>file://$PROJECT_DIR$/constraints_torch.py</url>
-          <line>321</line>
+          <line>357</line>
           <option name="timeStamp" value="22" />
         </line-breakpoint>
+        <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
+          <url>file://$PROJECT_DIR$/constraints_torch.py</url>
+          <line>183</line>
+          <option name="timeStamp" value="34" />
+        </line-breakpoint>
+        <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
+          <url>file://$PROJECT_DIR$/constraints_torch.py</url>
+          <line>210</line>
+          <option name="timeStamp" value="36" />
+        </line-breakpoint>
       </breakpoints>
-      <option name="time" value="34" />
+      <option name="time" value="37" />
     </breakpoint-manager>
-    <watches-manager>
-      <configuration name="PythonConfigurationType">
-        <watch expression="loss" language="Python" />
-        <watch expression="loss.mean()" language="Python" />
-        <watch expression="loss[0]" language="Python" />
-        <watch expression="loss.data" language="Python" />
-        <watch expression="loss.data.mean()" language="Python" />
-        <watch expression="output_seq[t].max(1)" language="Python" />
-        <watch expression="max_indices[:, 0] == targets_seq[t]" language="Python" />
-        <watch expression="correct.sum()" language="Python" />
-        <watch expression="correct.data.sum()" language="Python" />
-      </configuration>
-    </watches-manager>
+    <watches-manager />
   </component>
   <component name="editorHistoryManager">
-    <entry file="file://$PROJECT_DIR$/constraints_torch.py">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="2592">
-          <caret line="153" column="34" lean-forward="false" selection-start-line="153" selection-start-column="34" selection-end-line="153" selection-end-column="34" />
-          <folding>
-            <element signature="e#0#13#0" expanded="true" />
-            <element signature="e#605#3910#0" expanded="false" />
-          </folding>
-        </state>
-      </provider>
-    </entry>
-    <entry file="file://$PROJECT_DIR$/main.py">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="1242">
-          <caret line="69" column="25" lean-forward="false" selection-start-line="69" selection-start-column="20" selection-end-line="69" selection-end-column="25" />
-          <folding>
-            <element signature="e#0#9#0" expanded="true" />
-            <marker date="1491392003662" expanded="true" signature="2369:2964" ph="..." />
-            <marker date="1491392003662" expanded="true" signature="2398:2434" ph="..." />
-            <marker date="1491392003662" expanded="true" signature="2399:2430" ph="..." />
-          </folding>
-        </state>
-      </provider>
-    </entry>
     <entry file="file:///usr/local/lib/python3.5/dist-packages/torch/nn/_functions/linear.py">
       <provider selected="true" editor-type-id="text-editor">
         <state relative-caret-position="144">
@@ -537,7 +533,6 @@
           <caret line="153" column="34" lean-forward="false" selection-start-line="153" selection-start-column="34" selection-end-line="153" selection-end-column="34" />
           <folding>
             <element signature="e#0#13#0" expanded="true" />
-            <element signature="e#605#3910#0" expanded="false" />
           </folding>
         </state>
       </provider>
@@ -612,7 +607,6 @@
           <caret line="151" column="34" lean-forward="false" selection-start-line="151" selection-start-column="34" selection-end-line="151" selection-end-column="34" />
           <folding>
             <element signature="e#0#13#0" expanded="true" />
-            <element signature="e#605#3910#0" expanded="false" />
           </folding>
         </state>
       </provider>
@@ -812,19 +806,6 @@
         </state>
       </provider>
     </entry>
-    <entry file="file://$PROJECT_DIR$/main.py">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="0">
-          <caret line="69" column="25" lean-forward="false" selection-start-line="69" selection-start-column="20" selection-end-line="69" selection-end-column="25" />
-          <folding>
-            <element signature="e#0#9#0" expanded="true" />
-            <marker date="1491392003662" expanded="true" signature="2369:2964" ph="..." />
-            <marker date="1491392003662" expanded="true" signature="2398:2434" ph="..." />
-            <marker date="1491392003662" expanded="true" signature="2399:2430" ph="..." />
-          </folding>
-        </state>
-      </provider>
-    </entry>
     <entry file="file:///usr/local/lib/python3.5/dist-packages/torch/nn/_functions/linear.py">
       <provider selected="true" editor-type-id="text-editor">
         <state relative-caret-position="144">
@@ -899,13 +880,41 @@
         </state>
       </provider>
     </entry>
+    <entry file="file://$PROJECT_DIR$/../../anaconda3/lib/python3.6/site-packages/torch/nn/modules/module.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="188">
+          <caret line="205" column="0" lean-forward="false" selection-start-line="205" selection-start-column="0" selection-end-line="205" selection-end-column="0" />
+          <folding />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/../../anaconda3/lib/python3.6/site-packages/torch/nn/_functions/linear.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="144">
+          <caret line="9" column="0" lean-forward="false" selection-start-line="9" selection-start-column="0" selection-end-line="9" selection-end-column="0" />
+          <folding />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/main.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="-4104">
+          <caret line="69" column="25" lean-forward="false" selection-start-line="69" selection-start-column="20" selection-end-line="69" selection-end-column="25" />
+          <folding>
+            <element signature="e#0#9#0" expanded="true" />
+            <marker date="1491392003662" expanded="true" signature="2369:2964" ph="..." />
+            <marker date="1491392003662" expanded="true" signature="2398:2434" ph="..." />
+            <marker date="1491392003662" expanded="true" signature="2399:2430" ph="..." />
+          </folding>
+        </state>
+      </provider>
+    </entry>
     <entry file="file://$PROJECT_DIR$/constraints_torch.py">
       <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="326">
-          <caret line="135" column="17" lean-forward="true" selection-start-line="135" selection-start-column="17" selection-end-line="135" selection-end-column="17" />
+        <state relative-caret-position="408">
+          <caret line="336" column="48" lean-forward="false" selection-start-line="336" selection-start-column="48" selection-end-line="336" selection-end-column="48" />
           <folding>
             <element signature="e#0#13#0" expanded="true" />
-            <element signature="e#605#3910#0" expanded="false" />
           </folding>
         </state>
       </provider>

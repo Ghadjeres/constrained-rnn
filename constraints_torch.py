@@ -122,21 +122,36 @@ class ConstraintModel(nn.Module):
                  num_lstm_generation_units=256,
                  num_units_linear=128,
                  model_name='constraint_model',
-                 num_layers=1):
+                 num_layers=1,
+                 dropout_input_prob=0.2,
+                 dropout_prob=0.5):
         super(ConstraintModel, self).__init__()
         # parameters
         self.num_features = num_features
         self.num_lstm_constraints_units = num_lstm_constraints_units
         self.num_lstm_generation_units = num_lstm_generation_units
         self.num_units_linear = num_units_linear
+        self.num_layers = num_layers
         self.filepath = f'torch_models/{model_name}_{num_layers}layer{"s" if num_layers > 0 else ""}.h5'
 
+        self.lstm_constraints_sizes = [self.num_features + 1] + [self.num_lstm_constraints_units] * num_layers
+        self.lstm_generation_sizes = ([self.num_features + self.num_lstm_constraints_units] +
+                                      [self.num_lstm_generation_units] * num_layers)
+
         # trainable parameters
-        self.lstm_constraints = nn.LSTMCell(self.num_features + 1, self.num_lstm_constraints_units)
-        self.lstm_generation = nn.LSTMCell(self.num_features + self.num_lstm_constraints_units,
-                                           self.num_lstm_generation_units)
+        self.lstms_constraints = nn.ModuleList(
+            [nn.LSTMCell(self.lstm_constraints_sizes[i], self.lstm_constraints_sizes[i + 1])
+             for i in range(num_layers)])
+
+        self.lstms_generation = nn.ModuleList(
+            [nn.LSTMCell(self.lstm_generation_sizes[i], self.lstm_constraints_sizes[i + 1])
+             for i in range(num_layers)])
+
         self.linear_1 = nn.Linear(self.num_lstm_generation_units, num_units_linear)
         self.linear_2 = nn.Linear(self.num_units_linear, num_features)
+
+        self.dropout = nn.Dropout(p=dropout_prob)
+        self.dropout_input = nn.Dropout(p=dropout_input_prob)
 
     def forward(self, x: Variable):
         # todo binary mask?
@@ -155,28 +170,50 @@ class ConstraintModel(nn.Module):
 
         # constraints:
         # todo cuda??? variable???
-        h_c, c_c = Variable(torch.zeros(*hidden_dims_constraints).cuda()), Variable(
-            torch.zeros(*hidden_dims_constraints).cuda())
+        h_cs = [Variable(torch.zeros(*hidden_dims_constraints).cuda())
+                for _ in range(self.num_layers)]
+        c_cs = [Variable(torch.zeros(*hidden_dims_constraints).cuda())
+                for _ in range(self.num_layers)]
+
         output_constraints = []
         for time_index in range(seq_length - 1, -1, -1):
             time_slice = seq_constraints[time_index]
-            h_c, c_c = self.lstm_constraints(time_slice, (h_c, c_c))
-            output_constraints.append(h_c)
+            input = time_slice
+            # todo h_c = 0?
+            for layer_index, lstm in enumerate(self.lstms_constraints):
+                h_c, c_c = lstm(input, (h_cs[layer_index], c_cs[layer_index]))
+                # todo dropout?
+                h_c, c_c = self.dropout(h_c), self.dropout(c_c)
+                input = h_c
+                h_cs[layer_index] = h_c
+                c_cs[layer_index] = c_c
+            output_constraints.append(h_cs[-1])
         output_constraints.reverse()
 
         # generation:
         # todo c_g = c_c?
-        h_g, c_g = Variable(torch.zeros(*hidden_dims_gen).cuda()), Variable(torch.zeros(*hidden_dims_gen).cuda())
+        h_gs = [Variable(torch.zeros(*hidden_dims_gen).cuda())
+                for _ in range(self.num_layers)]
+        c_gs = [Variable(torch.zeros(*hidden_dims_gen).cuda())
+                for _ in range(self.num_layers)]
         output_gen = []
         for time_index in range(-1, seq_length - 1):
             if time_index == -1:
                 time_slice = Variable(torch.zeros(batch_size, num_features).cuda())
             else:
                 time_slice = seq[time_index]
+
             constraint = output_constraints[time_index + 1]
             time_slice_cat = torch.cat((time_slice, constraint), 1)
-            h_g, c_g = self.lstm_generation(time_slice_cat, (h_g, c_g))
-            output_gen.append(h_g)
+
+            input = time_slice_cat
+            for layer_index, lstm in enumerate(self.lstms_generation):
+                h_g, c_g = lstm(input, (h_gs[layer_index], c_gs[layer_index]))
+                h_g, c_g = self.dropout(h_g), self.dropout(c_g)
+                input = h_g
+                h_gs[layer_index] = h_g
+                c_gs[layer_index] = c_g
+            output_gen.append(h_gs[-1])
 
         # distributed NN on output
         output_gen = [F.relu(self.linear_1(time_slice)) for time_slice in output_gen]
@@ -188,7 +225,6 @@ class ConstraintModel(nn.Module):
         # hack!
         preds = torch.cat(preds)
         preds = preds.view(seq_length, batch_size, num_features)
-
         return preds
 
     def num_flat_features(self, x):
@@ -291,17 +327,17 @@ def accuracy(output_seq, targets_seq):
 
 
 if __name__ == '__main__':
-    (seq_length, batch_size, num_features) = (32, 128, 53)
-    num_batches = 20
+    (seq_length, batch_size, num_features) = (48, 32, 53)
+    batches_per_epoch = 100
 
-    constraint_model = ConstraintModel(num_features)
+    constraint_model = ConstraintModel(num_features=num_features, num_layers=2)
     constraint_model.cuda()
     print(constraint_model)
 
     optimizer = optim.Adam(constraint_model.parameters())
 
-    constraint_model.load()
-    constraint_model.train_model(batches_per_epoch=num_batches, num_epochs=200, plot=True)
+    # constraint_model.load()
+    constraint_model.train_model(batches_per_epoch=batches_per_epoch, num_epochs=50, plot=True)
 
     constraint_model.save()
     # Step 1. Remember that Pytorch accumulates gradients.
