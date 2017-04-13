@@ -120,13 +120,15 @@ class ConstraintModel(nn.Module):
     def __init__(self, num_features,
                  num_lstm_constraints_units=256,
                  num_lstm_generation_units=256,
-                 num_units_linear=128):
+                 num_units_linear=128,
+                 model_name='lstm_1_layer'):
         super(ConstraintModel, self).__init__()
         # parameters
         self.num_features = num_features
         self.num_lstm_constraints_units = num_lstm_constraints_units
         self.num_lstm_generation_units = num_lstm_generation_units
         self.num_units_linear = num_units_linear
+        self.filepath = 'torch_models/' + model_name + '.h5'
 
         # trainable parameters
         self.lstm_constraints = nn.LSTMCell(self.num_features + 1, self.num_lstm_constraints_units)
@@ -195,8 +197,10 @@ class ConstraintModel(nn.Module):
             num_features *= s
         return num_features
 
-    def train(self, num_batches, epoch):
-        for sample_id, next_element in tqdm(enumerate(islice(generator_train, num_batches))):
+    def train_epoch(self, batches_per_epoch, generator):
+        mean_loss = 0
+        mean_accuracy = 0
+        for sample_id, next_element in tqdm(enumerate(islice(generator, batches_per_epoch))):
             input_seq = next_element['input_seq']
             constraint = next_element['constraint']
             input_seq_index = next_element['input_seq_index']
@@ -213,72 +217,112 @@ class ConstraintModel(nn.Module):
             loss.backward()
             optimizer.step()
 
-        print('Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f}'.format(
-            epoch, num_batches, num_batches, num_batches, loss.data[0])
-        )
+            # compute mean loss and accuracy
+            mean_loss += loss.data.mean()
+            mean_accuracy += accuracy(output_seq=output, targets_seq=input_seq_index)
+        return mean_loss / batches_per_epoch, mean_accuracy / batches_per_epoch
+
+    def train_model(self, batches_per_epoch, num_epochs, plot=False):
+        generator_train = generator(batch_size=batch_size, timesteps=seq_length,
+                                    prob_constraint=0.3,
+                                    phase='train')
+
+        if plot:
+            import matplotlib.pyplot as plt
+            # plt.ion()
+            # fig = plt.figure()
+            # ax = fig.add_subplot(111)
+            fig, axarr = plt.subplots(2, sharex=True)
+            x, y_loss, y_acc = [], [], []
+            # line1, = ax.plot(x, y, 'ko')
+            fig.show()
+
+        for epoch_index in range(num_epochs):
+            mean_loss, mean_accuracy = self.train_epoch(batches_per_epoch=batches_per_epoch,
+                                                        generator=generator_train)
+            print(f'Train Epoch: {epoch_index}/{num_epochs} \tLoss: {mean_loss}\tAccuracy: {mean_accuracy * 100} %')
+            if plot:
+                x.append(epoch_index)
+                y_loss.append(mean_loss)
+                y_acc.append(mean_accuracy)
+                axarr[0].plot(x, y_loss, 'r-')
+                axarr[1].plot(x, y_acc, 'r-')
+                fig.canvas.draw()
+                plt.pause(0.001)
+
+    def save(self):
+        torch.save(self.state_dict(), self.filepath)
+
+    def load(self):
+        self.load_state_dict(torch.load(self.filepath))
 
 
-def mean_crossentropy_loss(input_seq, output_seq):
+def mean_crossentropy_loss(output_seq, targets_seq):
     """
     
-    :param input_seq: (seq_length, batch_size, num_features) of weights for each features
-    :type input_seq: 
-    :param output_seq: (seq_length, batch_size) of class indexes (between 0 and num_features -1) 
+    :param output_seq: (seq_length, batch_size, num_features) of weights for each features
     :type output_seq: 
+    :param targets_seq: (seq_length, batch_size) of class indexes (between 0 and num_features -1) 
+    :type targets_seq: 
     :return: 
     :rtype: 
     """
-    assert input_seq.size()[:-1] == output_seq.size()
-    seq_length = input_seq.size()[0]
+    assert output_seq.size()[:-1] == targets_seq.size()
+    seq_length = output_seq.size()[0]
     sum = 0
     cross_entropy = nn.CrossEntropyLoss()
 
     for t in range(seq_length):
-        sum += cross_entropy(input_seq[t], output_seq[t])
+        sum += cross_entropy(output_seq[t], targets_seq[t])
+    return sum / seq_length
+
+
+def accuracy(output_seq, targets_seq):
+    assert output_seq.size()[:-1] == targets_seq.size()
+    seq_length = output_seq.size()[0]
+    batch_size = output_seq.size()[1]
+    sum = 0
+    for t in range(seq_length):
+        max_values, max_indices = output_seq[t].max(1)
+        correct = max_indices[:, 0] == targets_seq[t]
+        sum += correct.data.sum() / batch_size
     return sum / seq_length
 
 
 if __name__ == '__main__':
     (seq_length, batch_size, num_features) = (32, 128, 53)
     num_batches = 20
+
     constraint_model = ConstraintModel(num_features)
     constraint_model.cuda()
     print(constraint_model)
-    # constraint_model((Variable(torch.rand(seq_length, batch_size, num_features + 1)),
-    #                   Variable(torch.rand(seq_length, batch_size, num_features),
-    #                            ))
-    #                  )
-
-    generator_train = generator(batch_size=batch_size,
-                                timesteps=seq_length,
-                                phase='train',
-                                prob_constraint=0.3
-                                )
 
     optimizer = optim.Adam(constraint_model.parameters())
 
-    for epoch in range(300):  # again, normally you would NOT do 300 epochs, it is toy data
-        constraint_model.train(num_batches=num_batches, epoch=epoch)
-        # Step 1. Remember that Pytorch accumulates gradients.
-        # We need to clear them out before each instance
-        # constraint_model.zero_grad()
+    constraint_model.load()
+    constraint_model.train_model(batches_per_epoch=num_batches, num_epochs=200, plot=True)
 
-        #
-        # # Also, we need to clear out the hidden state of the LSTM,
-        # # detaching it from its history on the last instance.
-        # # constraint_model.hidden = constraint_model.init_hidden()
-        #
-        # # Step 2. Get our inputs ready for the network, that is, turn them into
-        # # Variables.
-        # input_seq = Variable(torch.FloatTensor(input_seq).cuda(), requires_grad=True)
-        # constraint = Variable(torch.FloatTensor(constraint).cuda(), requires_grad=True)
-        # input_seq_index = Variable(torch.from_numpy(input_seq_index).cuda())
+    constraint_model.save()
+    # Step 1. Remember that Pytorch accumulates gradients.
+    # We need to clear them out before each instance
+    # constraint_model.zero_grad()
 
-        # Step 3. Run our forward pass.
-        # predictions = constraint_model((input_seq, constraint))
-        #
-        # # Step 4. Compute the loss, gradients, and update the parameters by
-        # #  calling optimizer.step()
-        # loss = mean_crossentropy_loss(predictions, input_seq_index)
-        # loss.backward()
-        # optimizer.step()
+    #
+    # # Also, we need to clear out the hidden state of the LSTM,
+    # # detaching it from its history on the last instance.
+    # # constraint_model.hidden = constraint_model.init_hidden()
+    #
+    # # Step 2. Get our inputs ready for the network, that is, turn them into
+    # # Variables.
+    # input_seq = Variable(torch.FloatTensor(input_seq).cuda(), requires_grad=True)
+    # constraint = Variable(torch.FloatTensor(constraint).cuda(), requires_grad=True)
+    # input_seq_index = Variable(torch.from_numpy(input_seq_index).cuda())
+
+    # Step 3. Run our forward pass.
+    # predictions = constraint_model((input_seq, constraint))
+    #
+    # # Step 4. Compute the loss, gradients, and update the parameters by
+    # #  calling optimizer.step()
+    # loss = mean_crossentropy_loss(predictions, input_seq_index)
+    # loss.backward()
+    # optimizer.step()
