@@ -111,7 +111,7 @@ class SimpleLSTM(nn.Module):
                  num_lstm_constraints_units=256,
                  num_lstm_generation_units=256,
                  num_units_linear=128,
-                 model_name='constraint',
+                 model_name='simple_lstm',
                  num_layers=1,
                  dropout_input_prob=0.2,
                  dropout_prob=0.5):
@@ -531,9 +531,9 @@ class ConstraintModel_Alternative(nn.Module):
         seq[-timesteps:] = np.full((timesteps,), fill_value=end_index)
 
         # add constraints
-        c_indexes = [16 + timesteps, 32 + timesteps, 48 + timesteps, 64 + timesteps]
+        c_indexes = [timesteps, 16 + timesteps, 32 + timesteps, 48 + timesteps, 64 + timesteps]
         for c_index in c_indexes:
-            seq[c_index] = 15
+            seq[c_index] = 10
         seq[64 + timesteps] = 32
         # only seq_constraints is onehot
         seq_constraints = chorale_to_onehot(
@@ -542,73 +542,47 @@ class ConstraintModel_Alternative(nn.Module):
             time_major=False
         )[:, None, :]
 
-        # compute constraints:
-        hidden_dims_constraints = (1, self.num_lstm_constraints_units)
-        hidden_dims_gen = (1, self.num_lstm_constraints_units)
-
-        # constraints:
-        h_cs = [Variable(torch.zeros(*hidden_dims_constraints).cuda())
-                for _ in range(self.num_layers)]
-        c_cs = [Variable(torch.zeros(*hidden_dims_constraints).cuda())
-                for _ in range(self.num_layers)]
-
         # convert seq_constraints to Variable
         seq_constraints = Variable(torch.Tensor(seq_constraints).cuda())
 
-        output_constraints = []
-        for time_index in range(sequence_length + timesteps * 2 - 1, -1, -1):
-            time_slice = seq_constraints[time_index]
-            input = time_slice
-            # todo h_c = 0?
-            for layer_index, lstm in enumerate(self.lstms_constraints):
-                h_c, c_c = lstm(input, (h_cs[layer_index], c_cs[layer_index]))
-                # todo dropout?
-                h_c, c_c = self.dropout(h_c), self.dropout(c_c)
-                input = h_c
-                h_cs[layer_index] = h_c
-                c_cs[layer_index] = c_c
-            output_constraints.append(h_cs[-1])
-        output_constraints.reverse()
+        # constraints:
+        hidden = (Variable(torch.rand(self.num_layers, 1, self.num_lstm_constraints_units).cuda()),
+                  Variable(torch.rand(self.num_layers, 1, self.num_lstm_constraints_units).cuda()))
 
+        # compute constraints -> in reverse order
+        seq_constraints = Variable(torch.from_numpy(np.flip(seq_constraints.data.cpu().numpy(), 0).copy()).cuda())
+        output_constraints, hidden = self.lstm_constraint(seq_constraints, hidden)
+        output_constraints = Variable(torch.from_numpy(np.flip(output_constraints.data.cpu().numpy(), 0).copy()).cuda())
+
+        # # generation:
+        hidden = (Variable(torch.rand(self.num_layers, 1, self.num_lstm_generation_units).cuda()),
+                  Variable(torch.rand(self.num_layers, 1, self.num_lstm_generation_units).cuda()))
         # generation:
-        # todo c_g = c_c?
-        h_gs = [Variable(torch.zeros(*hidden_dims_gen).cuda())
-                for _ in range(self.num_layers)]
-        c_gs = [Variable(torch.zeros(*hidden_dims_gen).cuda())
-                for _ in range(self.num_layers)]
-        output_gen = []
         for time_index in range(-1, sequence_length + timesteps * 2 - 1):
             if time_index == -1:
-                time_slice = Variable(torch.zeros(1, num_features).cuda())
+                time_slice = Variable(torch.zeros(1, 1, num_features).cuda())
             else:
                 time_slice = Variable(torch.FloatTensor(
-                    to_onehot(seq[time_index], num_indexes=self.num_features)[None, :]).cuda())
+                    to_onehot(seq[time_index], num_indexes=self.num_features)[None, None, :]).cuda())
 
-            constraint = output_constraints[time_index + 1]
-            time_slice_cat = torch.cat((time_slice, constraint), 1)
+            constraint = output_constraints[time_index + 1][None, :, :]
+            time_slice_cat = torch.cat((time_slice, constraint), 2)
 
             input = time_slice_cat
-            for layer_index, lstm in enumerate(self.lstms_generation):
-                h_g, c_g = lstm(input, (h_gs[layer_index], c_gs[layer_index]))
-                h_g, c_g = self.dropout(h_g), self.dropout(c_g)
-                input = h_g
-                h_gs[layer_index] = h_g
-                c_gs[layer_index] = c_g
-            output_gen.append(h_gs[-1])
+            output_gen, hidden = self.lstm_generation(input, hidden)
+            if time_index >= timesteps:
+                # distributed NN on output
+                # first time index
+                weights = F.relu(self.linear_1(output_gen[0, :, :]))
+                weights = self.linear_2(weights)
+                # compute predictions
+                preds = F.softmax(weights)
 
-            # distributed NN on output
-            preds = F.relu(self.linear_1(output_gen[-1]))
-
-            # todo change!
-            # apparently CrossEntropy includes a LogSoftMax layer
-            preds = self.linear_2(preds)
-            preds = F.softmax(preds)
-            # first batch element
-            preds = preds[0].data.cpu().numpy()
-            # print(preds.cpu().numpy(), num_pitches)
-            new_pitch_index = np.random.choice(np.arange(num_pitches), p=preds)
-            seq[time_index + 1] = new_pitch_index
-            print(preds[new_pitch_index])
+                # first batch element
+                preds = preds[0].data.cpu().numpy()
+                new_pitch_index = np.random.choice(np.arange(num_pitches), p=preds)
+                seq[time_index + 1] = new_pitch_index
+                print(preds[new_pitch_index])
 
         indexed_seq_to_score(seq, index2notes[SOP_INDEX], note2indexes[SOP_INDEX]).show()
 
@@ -763,10 +737,10 @@ class ConstraintModel(nn.Module):
 
     def train_model(self, batches_per_epoch, num_epochs, plot=False):
         generator_train = generator(batch_size=batch_size, timesteps=sequence_length,
-                                    prob_constraint=0.001,
+                                    prob_constraint=0.3,
                                     phase='train')
         generator_val = generator(batch_size=batch_size, timesteps=sequence_length,
-                                  prob_constraint=0.001,
+                                  prob_constraint=0.3,
                                   phase='test')
 
         if plot:
@@ -945,8 +919,13 @@ def mean_crossentropy_loss(output_seq, targets_seq, num_skipped=0):
     cross_entropy = nn.CrossEntropyLoss(size_average=True)
 
     # only retain one timestep
-    t = int(seq_length / 2)
-    return cross_entropy(output_seq[t], targets_seq[t])
+    # t = int(seq_length / 2)
+    # return cross_entropy(output_seq[t], targets_seq[t])
+
+    sum = 0
+    for t in range(22, 26):
+        sum += cross_entropy(output_seq[t], targets_seq[t])
+    return sum / 4
 
 
 def accuracy(output_seq, targets_seq, num_skipped=0):
@@ -965,11 +944,12 @@ def accuracy(output_seq, targets_seq, num_skipped=0):
     sum = 0
 
     # all many timesteps
-    # for t in range(num_skipped, seq_length - num_skipped):
-    #     max_values, max_indices = output_seq[t].max(1)
-    #     correct = max_indices[:, 0] == targets_seq[t]
-    #     sum += correct.data.sum() / batch_size
-    # return sum / (seq_length - 2 * num_skipped)
+    num_skipped = 22
+    for t in range(num_skipped, seq_length - num_skipped):
+        max_values, max_indices = output_seq[t].max(1)
+        correct = max_indices[:, 0] == targets_seq[t]
+        sum += correct.data.sum() / batch_size
+    return sum / (seq_length - 2 * num_skipped)
 
     # only retain one timestep
     t = int(seq_length / 2)
@@ -983,16 +963,16 @@ if __name__ == '__main__':
     batches_per_epoch = 200
 
     # constraint_model = ConstraintModel(num_features=num_features, num_layers=2)
-    # constraint_model = ConstraintModel_Alternative(num_features=num_features, num_units_linear=256, num_layers=2)
-    constraint_model = SimpleLSTM(num_features=num_features, num_units_linear=256, num_layers=2)
+    constraint_model = ConstraintModel_Alternative(num_features=num_features, num_units_linear=256, num_layers=2)
+    # constraint_model = SimpleLSTM(num_features=num_features, num_units_linear=256, num_layers=2)
     constraint_model.cuda()
     print(constraint_model)
 
     optimizer = optim.Adam(constraint_model.parameters())
     # optimizer = optim.RMSprop(constraint_model.parameters())
 
-    # constraint_model.load()
-    constraint_model.train_model(batches_per_epoch=batches_per_epoch, num_epochs=50, plot=True)
+    constraint_model.load()
+    constraint_model.train_model(batches_per_epoch=batches_per_epoch, num_epochs=100, plot=True)
     constraint_model.save()
 
     constraint_model.generate()
