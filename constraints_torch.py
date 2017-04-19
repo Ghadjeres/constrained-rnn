@@ -419,6 +419,8 @@ class ConstraintModel_Alternative(nn.Module):
 
         offset_seq = torch.cat(
             [Variable(torch.zeros(1, batch_size, self.num_features).cuda()), seq[:seq_length - 1, :, :]], 0)
+        # todo dropout only on offset_seq?
+        offset_seq = self.dropout_input(offset_seq)
         input = torch.cat([offset_seq, output_constraints], 2)
         output_gen, hidden = self.lstm_generation(input, hidden)
 
@@ -469,10 +471,10 @@ class ConstraintModel_Alternative(nn.Module):
 
     def train_model(self, batches_per_epoch, num_epochs, plot=False):
         generator_train = generator(batch_size=batch_size, timesteps=sequence_length,
-                                    prob_constraint=0.2,
+                                    prob_constraint=0.4,
                                     phase='train')
         generator_val = generator(batch_size=batch_size, timesteps=sequence_length,
-                                  prob_constraint=0.2,
+                                  prob_constraint=0.4,
                                   phase='test')
 
         if plot:
@@ -486,8 +488,10 @@ class ConstraintModel_Alternative(nn.Module):
             fig.show()
 
         for epoch_index in range(num_epochs):
+            self.train()
             mean_loss, mean_accuracy = self.loss_and_acc_on_epoch(batches_per_epoch=batches_per_epoch,
                                                                   generator=generator_train, train=True)
+            self.eval()
             mean_val_loss, mean_val_accuracy = self.loss_and_acc_on_epoch(batches_per_epoch=int(batches_per_epoch / 5),
                                                                           generator=generator_val, train=False)
             print(f'Train Epoch: {epoch_index}/{num_epochs} \tLoss: {mean_loss}\tAccuracy: {mean_accuracy * 100} %')
@@ -508,6 +512,7 @@ class ConstraintModel_Alternative(nn.Module):
         self.load_state_dict(torch.load(self.filepath))
 
     def generate(self, sequence_length=160):
+        self.eval()
         _, voice_ids, index2notes, note2indexes, metadatas = pickle.load(open(dataset_filepath, 'rb'))
 
         gen = generator(batch_size=1, phase='train', timesteps=16)
@@ -533,7 +538,7 @@ class ConstraintModel_Alternative(nn.Module):
         # add constraints
         c_indexes = [timesteps, 16 + timesteps, 32 + timesteps, 48 + timesteps, 64 + timesteps]
         for c_index in c_indexes:
-            seq[c_index] = 10
+            seq[c_index] = 11
         seq[64 + timesteps] = 32
         # only seq_constraints is onehot
         seq_constraints = chorale_to_onehot(
@@ -583,6 +588,7 @@ class ConstraintModel_Alternative(nn.Module):
                 new_pitch_index = np.random.choice(np.arange(num_pitches), p=preds)
                 seq[time_index + 1] = new_pitch_index
                 print(preds[new_pitch_index])
+        print(seq)
 
         indexed_seq_to_score(seq, index2notes[SOP_INDEX], note2indexes[SOP_INDEX]).show()
 
@@ -737,10 +743,10 @@ class ConstraintModel(nn.Module):
 
     def train_model(self, batches_per_epoch, num_epochs, plot=False):
         generator_train = generator(batch_size=batch_size, timesteps=sequence_length,
-                                    prob_constraint=0.2,
+                                    prob_constraint=0.3,
                                     phase='train')
         generator_val = generator(batch_size=batch_size, timesteps=sequence_length,
-                                  prob_constraint=0.2,
+                                  prob_constraint=0.3,
                                   phase='test')
 
         if plot:
@@ -801,7 +807,7 @@ class ConstraintModel(nn.Module):
         # add constraints
         c_indexes = [16 + timesteps, 32 + timesteps, 48 + timesteps, 64 + timesteps]
         for c_index in c_indexes:
-            seq[c_index] = 15
+            seq[c_index] = 12
         seq[64 + timesteps] = 32
         # only seq_constraints is onehot
         seq_constraints = chorale_to_onehot(
@@ -877,6 +883,7 @@ class ConstraintModel(nn.Module):
             seq[time_index + 1] = new_pitch_index
             print(preds[new_pitch_index])
 
+        print(seq)
         indexed_seq_to_score(seq, index2notes[SOP_INDEX], note2indexes[SOP_INDEX]).show()
 
         return seq
@@ -972,7 +979,7 @@ if __name__ == '__main__':
     # optimizer = optim.RMSprop(constraint_model.parameters())
 
     constraint_model.load()
-    constraint_model.train_model(batches_per_epoch=batches_per_epoch, num_epochs=1000, plot=True)
+    constraint_model.train_model(batches_per_epoch=batches_per_epoch, num_epochs=500, plot=True)
     constraint_model.save()
 
-    constraint_model.generate()
+    constraint_model.generate(sequence_length=120)
