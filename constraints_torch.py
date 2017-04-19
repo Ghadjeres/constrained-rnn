@@ -737,10 +737,10 @@ class ConstraintModel(nn.Module):
 
     def train_model(self, batches_per_epoch, num_epochs, plot=False):
         generator_train = generator(batch_size=batch_size, timesteps=sequence_length,
-                                    prob_constraint=0.3,
+                                    prob_constraint=0.2,
                                     phase='train')
         generator_val = generator(batch_size=batch_size, timesteps=sequence_length,
-                                  prob_constraint=0.3,
+                                  prob_constraint=0.2,
                                   phase='test')
 
         if plot:
@@ -972,7 +972,7 @@ if __name__ == '__main__':
     # optimizer = optim.RMSprop(constraint_model.parameters())
 
     constraint_model.load()
-    # constraint_model.train_model(batches_per_epoch=batches_per_epoch, num_epochs=100, plot=True)
-    # constraint_model.save()
+    constraint_model.train_model(batches_per_epoch=batches_per_epoch, num_epochs=1000, plot=True)
+    constraint_model.save()
 
     constraint_model.generate()
