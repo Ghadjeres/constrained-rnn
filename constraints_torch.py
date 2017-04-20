@@ -370,7 +370,7 @@ class ConstraintModel_Alternative(nn.Module):
         idx = Variable(torch.LongTensor(idx)).cuda()
         seq_constraints = seq_constraints.index_select(0, idx)
         output_constraints, hidden = self.lstm_constraint(seq_constraints, hidden)
-
+        output_constraints = output_constraints.index_select(0, idx)
 
         # generation:
         hidden = (Variable(torch.rand(self.num_layers, batch_size, self.num_lstm_generation_units).cuda()),
@@ -517,9 +517,11 @@ class ConstraintModel_Alternative(nn.Module):
                   Variable(torch.rand(self.num_layers, 1, self.num_lstm_constraints_units).cuda()))
 
         # compute constraints -> in reverse order
-        seq_constraints = Variable(torch.from_numpy(np.flip(seq_constraints.data.cpu().numpy(), 0).copy()).cuda())
+        idx = [i for i in range(seq_constraints.size(0)-1, -1, -1)]
+        idx = Variable(torch.LongTensor(idx)).cuda()
+        seq_constraints = seq_constraints.index_select(0, idx)
         output_constraints, hidden = self.lstm_constraint(seq_constraints, hidden)
-        output_constraints = Variable(torch.from_numpy(np.flip(output_constraints.data.cpu().numpy(), 0).copy()).cuda())
+        # TODO REVERSE AGAIN
 
         # # generation:
         hidden = (Variable(torch.rand(self.num_layers, 1, self.num_lstm_generation_units).cuda()),
@@ -713,8 +715,8 @@ def comparison(constraint_model: ConstraintModel_Alternative, simple_model: Simp
         input_constraint = time_slice_cat
         input_simple = time_slice
 
-        output_gen_constraint, hidden_constraint = constraint_model.lstm_generation(input_constraint, hidden_constraint)
         output_gen_simple, hidden_simple = simple_model.lstm_generation(input_simple, hidden_simple)
+        output_gen_constraint, hidden_constraint = constraint_model.lstm_generation(input_constraint, hidden_constraint)
 
         if time_index >= timesteps - 1:
             # distributed NN on output
@@ -782,10 +784,10 @@ if __name__ == '__main__':
     # constraint_model.save()
 
     # simple model:
-    # simple_model = SimpleLSTM(num_features=num_features, num_units_linear=256, num_layers=2)
+    simple_model = SimpleLSTM(num_features=num_features, num_units_linear=256, num_layers=2)
     # optimizer = torch.optim.Adam(simple_model.parameters())
     # simple_model.cuda()
-    # simple_model.load()
+    simple_model.load()
     # simple_model.train_model(batches_per_epoch=batches_per_epoch, num_epochs=100, plot=True)
     # simple_model.save()
 
@@ -794,4 +796,4 @@ if __name__ == '__main__':
     # constraint_model.load()
     # simple_model.load()
     #
-    # comparison(constraint_model, simple_model, sequence_length=100)
+    comparison(constraint_model, simple_model, sequence_length=100)
