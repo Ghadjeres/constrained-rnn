@@ -767,8 +767,8 @@ def comparison(constraint_model: ConstraintModel_Alternative, simple_model: Simp
 
 
 if __name__ == '__main__':
-    (sequence_length, batch_size, num_features) = (48, 32, 53)
-    batches_per_epoch = 200
+    (sequence_length, batch_size, num_features) = (48, 128, 53)
+    batches_per_epoch = 100
 
     # constraint_model = ConstraintModel(num_features=num_features, num_layers=2)
     constraint_model = ConstraintModel_Alternative(num_features=num_features, num_units_linear=256, num_layers=2)
@@ -778,7 +778,7 @@ if __name__ == '__main__':
     optimizer = torch.optim.Adam(constraint_model.parameters())
 
     constraint_model.load()
-    # constraint_model.train_model(batches_per_epoch=batches_per_epoch, num_epochs=100, plot=True)
+    # constraint_model.train_model(batches_per_epoch=batches_per_epoch, num_epochs=500, plot=True)
     # constraint_model.save()
 
     # simple model:
@@ -788,8 +788,6 @@ if __name__ == '__main__':
     # simple_model.load()
     # simple_model.train_model(batches_per_epoch=batches_per_epoch, num_epochs=100, plot=True)
     # simple_model.save()
-
-
 
     constraint_model.generate(sequence_length=120)
 
