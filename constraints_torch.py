@@ -433,10 +433,10 @@ class ConstraintModel(nn.Module):
 
     def train_model(self, batches_per_epoch, num_epochs, plot=False):
         generator_train = generator(batch_size=batch_size, timesteps=sequence_length,
-                                    prob_constraint=0.4,
+                                    prob_constraint=0.1,
                                     phase='train')
         generator_val = generator(batch_size=batch_size, timesteps=sequence_length,
-                                  prob_constraint=0.4,
+                                  prob_constraint=0.1,
                                   phase='test')
 
         if plot:
@@ -473,13 +473,88 @@ class ConstraintModel(nn.Module):
     def load(self):
         self.load_state_dict(torch.load(self.filepath))
 
-    def fill(self, seq, padding=16):
+    def evaluate_proba_(self, seq, output_constraints, padding=16):
+        """
+        takes directly output_constraints as input
+        :param seq: 
+        :type seq: 
+        :param output_constraints: 
+        :type output_constraints: 
+        :param padding: 
+        :type padding: 
+        :return: 
+        :rtype: 
+        """
+        # todo padding?
+        # todo warning hard coded
+        probas = []
+
+        num_pitches = 53
+
+        # seq_constraints = chorale_to_onehot(
+        #     chorale=[constraints],
+        #     num_pitches=[num_pitches + 1],
+        #     time_major=False
+        # )[:, None, :]
+        #
+        # # convert seq_constraints to Variable
+        # seq_constraints = Variable(torch.Tensor(seq_constraints).cuda())
+        #
+        # # constraints:
+        hidden = (Variable(torch.rand(self.num_layers, 1, self.num_lstm_constraints_units).cuda()),
+                  Variable(torch.rand(self.num_layers, 1, self.num_lstm_constraints_units).cuda()))
+
+        # # compute constraints -> in reverse order
+        # idx = [i for i in range(seq_constraints.size(0) - 1, -1, -1)]
+        # idx = Variable(torch.LongTensor(idx)).cuda()
+        # seq_constraints = seq_constraints.index_select(0, idx)
+        # output_constraints, hidden = self.lstm_constraint(seq_constraints, hidden)
+        # output_constraints = output_constraints.index_select(0, idx)
+
+
+        # generation:
+        for time_index in range(-1, sequence_length + - 1):
+            if time_index == -1:
+                time_slice = Variable(torch.zeros(1, 1, self.num_features).cuda())
+            else:
+                time_slice = Variable(torch.FloatTensor(
+                    to_onehot(seq[time_index], num_indexes=self.num_features)[None, None, :]).cuda())
+
+            constraint = output_constraints[time_index + 1][None, :, :]
+            time_slice_cat = torch.cat((time_slice, constraint), 2)
+
+            input = time_slice_cat
+            output_gen, hidden = self.lstm_generation(input, hidden)
+            if sequence_length - padding > time_index >= padding - 1:
+                # distributed NN on output
+                # first time index
+                weights = F.relu(self.linear_1(output_gen[0, :, :]))
+                weights = self.linear_2(weights)
+                # compute predictions
+                preds = F.softmax(weights)
+
+                # first batch element
+                preds = preds[0].data.cpu().numpy()
+                next_pitch_index = seq[time_index + 1]
+                probas.append(preds[next_pitch_index])
+        return np.array(probas)
+
+    def fill(self, indexed_seq, padding=16):
+        """
+        
+        :param indexed_seq: 
+        :type indexed_seq: 
+        :param padding: 
+        :type padding: 
+        :return: 
+        :rtype: 
+        """
         self.eval()
         num_pitches = 53
 
-        sequence_length = len(seq)
+        sequence_length = len(indexed_seq)
         seq_constraints = chorale_to_onehot(
-            chorale=[seq],
+            chorale=[indexed_seq],
             num_pitches=[num_pitches + 1],
             time_major=False
         )[:, None, :]
@@ -502,19 +577,19 @@ class ConstraintModel(nn.Module):
         hidden = (Variable(torch.rand(self.num_layers, 1, self.num_lstm_generation_units).cuda()),
                   Variable(torch.rand(self.num_layers, 1, self.num_lstm_generation_units).cuda()))
         # generation:
-        for time_index in range(-1, sequence_length + padding * 2 - 1):
+        for time_index in range(-1, sequence_length + - 1):
             if time_index == -1:
                 time_slice = Variable(torch.zeros(1, 1, self.num_features).cuda())
             else:
                 time_slice = Variable(torch.FloatTensor(
-                    to_onehot(seq[time_index], num_indexes=self.num_features)[None, None, :]).cuda())
+                    to_onehot(indexed_seq[time_index], num_indexes=self.num_features)[None, None, :]).cuda())
 
             constraint = output_constraints[time_index + 1][None, :, :]
             time_slice_cat = torch.cat((time_slice, constraint), 2)
 
             input = time_slice_cat
             output_gen, hidden = self.lstm_generation(input, hidden)
-            if time_index >= padding - 1:
+            if sequence_length - padding > time_index >= padding - 1:
                 # distributed NN on output
                 # first time index
                 weights = F.relu(self.linear_1(output_gen[0, :, :]))
@@ -525,9 +600,47 @@ class ConstraintModel(nn.Module):
                 # first batch element
                 preds = preds[0].data.cpu().numpy()
                 new_pitch_index = np.random.choice(np.arange(num_pitches), p=preds)
-                seq[time_index + 1] = new_pitch_index
-                print(preds[new_pitch_index])
-        return seq[padding:-padding]
+                indexed_seq[time_index + 1] = new_pitch_index
+        return indexed_seq[padding:-padding]
+
+    def generate_bis(self, sequence_length=160):
+        _, voice_ids, index2notes, note2indexes, metadatas = pickle.load(open(dataset_filepath, 'rb'))
+
+        gen = generator(batch_size=1, phase='train', timesteps=16)
+        inputs = next(gen)
+        num_features = inputs['input_seq'].shape[-1]
+        # todo WARNING hard coded
+        num_pitches = 53
+        # todo timesteps useless
+        timesteps = 16
+
+        slur_index, start_index, end_index = [note2indexes[SOP_INDEX][s] for s in [SLUR_SYMBOL,
+                                                                                   START_SYMBOL,
+                                                                                   END_SYMBOL]]
+        no_constraint_index = num_pitches
+        note2indexes[SOP_INDEX][NO_CONSTRAINT] = no_constraint_index
+        index2notes[SOP_INDEX][no_constraint_index] = NO_CONSTRAINT
+
+        seq = np.full((sequence_length + 2 * timesteps,), fill_value=no_constraint_index)
+
+        seq[:timesteps] = np.full((timesteps,), fill_value=start_index)
+        seq[-timesteps:] = np.full((timesteps,), fill_value=end_index)
+
+        # add constraints
+        c_indexes = [timesteps, 32 + timesteps, 64 + timesteps]
+        for c_index in c_indexes:
+            seq[c_index] = 11
+        seq[64 + timesteps] = 32
+
+        seq = self.fill(indexed_seq=seq, padding=timesteps)
+
+        # print
+        for t, index in enumerate(seq):
+            print(t, index)
+
+        indexed_seq_to_score(seq, index2notes[SOP_INDEX], note2indexes[SOP_INDEX]).show()
+
+        return seq
 
     def generate(self, sequence_length=160):
         self.eval()
@@ -694,138 +807,6 @@ def accuracy(output_seq, targets_seq, num_skipped=0):
     return correct.data.sum() / batch_size
 
 
-def comparison(constraint_model: ConstraintModel, simple_model: SimpleLSTM, sequence_length=120):
-    constraint_model.eval()
-    simple_model.eval()
-
-    _, voice_ids, index2notes, note2indexes, metadatas = pickle.load(open(dataset_filepath, 'rb'))
-    del _
-    gen = generator(batch_size=1, phase='train', timesteps=16)
-    inputs = next(gen)
-    num_features = inputs['input_seq'].shape[-1]
-    # todo WARNING hard coded
-    num_pitches = 53
-    # todo timesteps useless
-    timesteps = 16
-
-    kls_sc = []
-    kls_cs = []
-
-    slur_index, start_index, end_index = [note2indexes[SOP_INDEX][s] for s in [SLUR_SYMBOL,
-                                                                               START_SYMBOL,
-                                                                               END_SYMBOL]]
-    no_constraint_index = num_pitches
-    note2indexes[SOP_INDEX][NO_CONSTRAINT] = no_constraint_index
-    index2notes[SOP_INDEX][no_constraint_index] = NO_CONSTRAINT
-
-    seq = np.full((sequence_length + 2 * timesteps,), fill_value=no_constraint_index)
-
-    seq[:timesteps] = np.full((timesteps,), fill_value=start_index)
-    seq[-timesteps:] = np.full((timesteps,), fill_value=end_index)
-
-    # add constraints
-    # c_indexes = [timesteps, 16 + timesteps, 32 + timesteps, 48 + timesteps, 64 + timesteps]
-    # for c_index in c_indexes:
-    #     seq[c_index] = 12
-    # seq[64] = 32
-
-    # only seq_constraints is onehot
-    seq_constraints = chorale_to_onehot(
-        chorale=[seq],
-        num_pitches=[num_pitches + 1],
-        time_major=False
-    )[:, None, :]
-
-    # convert seq_constraints to Variable
-    seq_constraints = Variable(torch.Tensor(seq_constraints).cuda())
-
-    # constraints:
-    hidden = (Variable(torch.rand(constraint_model.num_layers, 1, constraint_model.num_lstm_constraints_units).cuda()),
-              Variable(torch.rand(constraint_model.num_layers, 1, constraint_model.num_lstm_constraints_units).cuda()))
-
-    # compute constraints -> in reverse order
-    seq_constraints = Variable(torch.from_numpy(np.flip(seq_constraints.data.cpu().numpy(), 0).copy()).cuda())
-    output_constraints, hidden = constraint_model.lstm_constraint(seq_constraints, hidden)
-    output_constraints = Variable(torch.from_numpy(np.flip(output_constraints.data.cpu().numpy(), 0).copy()).cuda())
-
-    # # generation:
-    hidden_constraint = (
-        Variable(torch.rand(constraint_model.num_layers, 1, constraint_model.num_lstm_generation_units).cuda()),
-        Variable(torch.rand(constraint_model.num_layers, 1, constraint_model.num_lstm_generation_units).cuda()))
-
-    hidden_simple = (
-        Variable(torch.rand(simple_model.num_layers, 1, simple_model.num_lstm_generation_units).cuda()),
-        Variable(torch.rand(simple_model.num_layers, 1, simple_model.num_lstm_generation_units).cuda()))
-
-    # generation:
-    for time_index in range(-1, sequence_length + timesteps * 2 - 1):
-        if time_index == -1:
-            time_slice = Variable(torch.zeros(1, 1, num_features).cuda())
-        else:
-            time_slice = Variable(torch.FloatTensor(
-                to_onehot(seq[time_index], num_indexes=constraint_model.num_features)[None, None, :]).cuda())
-
-        constraint = output_constraints[time_index + 1][None, :, :]
-        time_slice_cat = torch.cat((time_slice, constraint), 2)
-
-        input_constraint = time_slice_cat
-        input_simple = time_slice
-
-        output_gen_simple, hidden_simple = simple_model.lstm_generation(input_simple, hidden_simple)
-        output_gen_constraint, hidden_constraint = constraint_model.lstm_generation(input_constraint, hidden_constraint)
-
-        if time_index >= timesteps - 1:
-            # distributed NN on output
-
-            # constraint_model
-            # first time index
-            weights_constraint = F.relu(constraint_model.linear_1(output_gen_constraint[0, :, :]))
-            weights_constraint = constraint_model.linear_2(weights_constraint)
-            # compute predictions
-            preds_constraint = F.softmax(weights_constraint)
-
-            # first time index
-            weights_simple = F.relu(simple_model.linear_1(output_gen_simple[0, :, :]))
-            weights_simple = simple_model.linear_2(weights_simple)
-            # compute predictions
-            preds_simple = F.softmax(weights_simple)
-
-            preds_simple = preds_simple[0].data.cpu().numpy()
-            preds_constraint = preds_constraint[0].data.cpu().numpy()
-
-            # compute KL
-            kl_simple_constraint = np.sum(preds_simple * np.array(
-                [np.log(p / q) if p > 1e-10 else 0 for (p, q) in zip(preds_simple, preds_constraint)]))
-            kls_sc.append(kl_simple_constraint)
-
-            kl_constraint_simple = np.sum(preds_constraint * np.array(
-                [np.log(p / q) if p > 1e-10 else 0 for (p, q) in zip(preds_constraint, preds_simple)]))
-            kls_cs.append(kl_constraint_simple)
-
-            # first batch element
-            new_pitch_index = np.random.choice(np.arange(num_pitches), p=preds_constraint)
-            # new_pitch_index = np.random.choice(np.arange(num_pitches), p=preds_simple)
-            seq[time_index + 1] = new_pitch_index
-            print(time_index, preds_constraint[new_pitch_index], preds_simple[new_pitch_index], kl_simple_constraint,
-                  kl_constraint_simple)
-
-    # # print
-    for t, index in enumerate(seq):
-        print(t, index)
-    # print(kls_sc)
-
-    # plot
-    plt.clf()
-    p1 = plt.plot(np.arange(sequence_length), kls_sc[:sequence_length])
-    p2 = plt.plot(np.arange(sequence_length), kls_cs[:sequence_length])
-    plt.legend([p1, p2], ['kl_sc', 'kl_cs'])
-    plt.show()
-
-    indexed_seq_to_score(seq, index2notes[SOP_INDEX], note2indexes[SOP_INDEX]).show()
-
-    return seq
-
-
 def comparison_same_model(constraint_model: ConstraintModel, sequence_length=120):
     constraint_model.eval()
     _, voice_ids, index2notes, note2indexes, metadatas = pickle.load(open(dataset_filepath, 'rb'))
@@ -871,8 +852,8 @@ def comparison_same_model(constraint_model: ConstraintModel, sequence_length=120
     # compute no constraints -> in reverse order
     idx = [i for i in range(seq_no_constraints.size(0) - 1, -1, -1)]
     idx = Variable(torch.LongTensor(idx)).cuda()
-    seq_constraints = seq_no_constraints.index_select(0, idx)
-    output_no_constraints, hidden = constraint_model.lstm_constraint(seq_constraints, hidden_constraints_init)
+    seq_no_constraints = seq_no_constraints.index_select(0, idx)
+    output_no_constraints, hidden = constraint_model.lstm_constraint(seq_no_constraints, hidden_constraints_init)
     output_no_constraints = output_no_constraints.index_select(0, idx)
 
     # __________CONSTRAINTS___________
@@ -982,7 +963,7 @@ def comparison_same_model(constraint_model: ConstraintModel, sequence_length=120
     return seq
 
 
-def plot_proba_ratios(constraint_model: ConstraintModel, num_points=1000):
+def plot_proba_ratios(constraint_model: ConstraintModel, num_points=1000, sequence_length=120, csv_filepath=None):
     constraint_model.eval()
     _, voice_ids, index2notes, note2indexes, metadatas = pickle.load(open(dataset_filepath, 'rb'))
     del _
@@ -994,8 +975,6 @@ def plot_proba_ratios(constraint_model: ConstraintModel, num_points=1000):
     # todo timesteps useless
     timesteps = 16
 
-    kls_nc2c = []
-    kls_c2nc = []
 
     slur_index, start_index, end_index = [note2indexes[SOP_INDEX][s] for s in [SLUR_SYMBOL,
                                                                                START_SYMBOL,
@@ -1004,140 +983,82 @@ def plot_proba_ratios(constraint_model: ConstraintModel, num_points=1000):
     note2indexes[SOP_INDEX][NO_CONSTRAINT] = no_constraint_index
     index2notes[SOP_INDEX][no_constraint_index] = NO_CONSTRAINT
 
-    for i in range(num_points):
-        seq = np.full((sequence_length + 2 * timesteps,), fill_value=no_constraint_index)
+    seq = np.full((sequence_length + 2 * timesteps,), fill_value=no_constraint_index)
 
-        seq[:timesteps] = np.full((timesteps,), fill_value=start_index)
-        seq[-timesteps:] = np.full((timesteps,), fill_value=end_index)
+    seq[:timesteps] = np.full((timesteps,), fill_value=start_index)
+    seq[-timesteps:] = np.full((timesteps,), fill_value=end_index)
 
-        # __________NO CONSTRAINTS________
-        seq_no_constraints = chorale_to_onehot(
-            chorale=[seq],
-            num_pitches=[num_pitches + 1],
-            time_major=False
-        )[:, None, :]
+    # __________NO CONSTRAINTS________
+    seq_no_constraints = chorale_to_onehot(
+        chorale=[seq],
+        num_pitches=[num_pitches + 1],
+        time_major=False
+    )[:, None, :]
 
-        # convert seq_no_constraints to Variable
-        seq_no_constraints = Variable(torch.Tensor(seq_no_constraints).cuda())
+    # convert seq_no_constraints to Variable
+    seq_no_constraints = Variable(torch.Tensor(seq_no_constraints).cuda())
 
-        # constraints:
-        hidden_constraints_init = (
-            Variable(torch.rand(constraint_model.num_layers, 1, constraint_model.num_lstm_constraints_units).cuda()),
-            Variable(torch.rand(constraint_model.num_layers, 1, constraint_model.num_lstm_constraints_units).cuda()))
+    # constraints:
+    hidden_constraints_init = (
+        Variable(torch.rand(constraint_model.num_layers, 1, constraint_model.num_lstm_constraints_units).cuda()),
+        Variable(torch.rand(constraint_model.num_layers, 1, constraint_model.num_lstm_constraints_units).cuda()))
 
-        # compute no constraints -> in reverse order
-        idx = [i for i in range(seq_no_constraints.size(0) - 1, -1, -1)]
-        idx = Variable(torch.LongTensor(idx)).cuda()
-        seq_constraints = seq_no_constraints.index_select(0, idx)
-        output_no_constraints, hidden = constraint_model.lstm_constraint(seq_constraints, hidden_constraints_init)
-        output_no_constraints = output_no_constraints.index_select(0, idx)
+    # compute no constraints -> in reverse order
+    idx = [i for i in range(seq_no_constraints.size(0) - 1, -1, -1)]
+    idx = Variable(torch.LongTensor(idx)).cuda()
+    seq_no_constraints = seq_no_constraints.index_select(0, idx)
+    output_no_constraints, hidden = constraint_model.lstm_constraint(seq_no_constraints, hidden_constraints_init)
+    output_no_constraints = output_no_constraints.index_select(0, idx)
 
-        # __________CONSTRAINTS___________
-        # add constraints
-        c_indexes = [timesteps, 32 + timesteps, 64 + timesteps]
-        for c_index in c_indexes:
-            seq[c_index] = 11
-        seq[48 + timesteps] = 32
+    # __________CONSTRAINTS___________
+    # add constraints
+    c_indexes = [timesteps, 32 + timesteps, 64 + timesteps]
+    for c_index in c_indexes:
+        seq[c_index] = 11
+    seq[48 + timesteps] = 32
 
-        # only seq_constraints is onehot
-        seq_constraints = chorale_to_onehot(
-            chorale=[seq],
-            num_pitches=[num_pitches + 1],
-            time_major=False
-        )[:, None, :]
+    # # only seq_constraints is onehot
+    seq_constraints = chorale_to_onehot(
+        chorale=[seq],
+        num_pitches=[num_pitches + 1],
+        time_major=False
+    )[:, None, :]
 
-        # convert seq_constraints to Variable
-        seq_constraints = Variable(torch.Tensor(seq_constraints).cuda())
+    # convert seq_constraints to Variable
+    seq_constraints = Variable(torch.Tensor(seq_constraints).cuda())
 
-        # compute constraints -> in reverse order
-        # same hidden state initialization
-        idx = [i for i in range(seq_constraints.size(0) - 1, -1, -1)]
-        idx = Variable(torch.LongTensor(idx)).cuda()
-        seq_constraints = seq_constraints.index_select(0, idx)
-        output_constraints, hidden = constraint_model.lstm_constraint(seq_constraints, hidden_constraints_init)
-        output_constraints = output_constraints.index_select(0, idx)
+    # compute constraints -> in reverse order
+    # same hidden state initialization
+    idx = [i for i in range(seq_constraints.size(0) - 1, -1, -1)]
+    idx = Variable(torch.LongTensor(idx)).cuda()
+    seq_constraints = seq_constraints.index_select(0, idx)
+    output_constraints, hidden = constraint_model.lstm_constraint(seq_constraints, hidden_constraints_init)
+    output_constraints = output_constraints.index_select(0, idx)
 
-        # # generation:
-        hidden_constraint = (
-            Variable(torch.rand(constraint_model.num_layers, 1, constraint_model.num_lstm_generation_units).cuda()),
-            Variable(torch.rand(constraint_model.num_layers, 1, constraint_model.num_lstm_generation_units).cuda()))
+    x = []
+    y = []
+    for i in tqdm(range(num_points)):
+        seq_gen = constraint_model.fill(indexed_seq=seq.copy(), padding=timesteps)
+        probas_constraint = constraint_model.evaluate_proba_(seq_gen, output_constraints=output_constraints)
+        probas_no_constraint = constraint_model.evaluate_proba_(seq_gen, output_constraints=output_no_constraints)
 
-        hidden_no_constraint = (
-            Variable(torch.rand(constraint_model.num_layers, 1, constraint_model.num_lstm_generation_units).cuda()),
-            Variable(torch.rand(constraint_model.num_layers, 1, constraint_model.num_lstm_generation_units).cuda()))
+        logprobas_constraint = np.sum(np.log(probas_constraint))
+        logprobas_no_constraint = np.sum(np.log(probas_no_constraint))
 
-        # generation:
-        for time_index in range(-1, sequence_length + timesteps * 2 - 1):
-            if time_index == -1:
-                time_slice = Variable(torch.zeros(1, 1, num_features).cuda())
-            else:
-                time_slice = Variable(torch.FloatTensor(
-                    to_onehot(seq[time_index], num_indexes=constraint_model.num_features)[None, None, :]).cuda())
-
-            constraint = output_constraints[time_index + 1][None, :, :]
-            time_slice_constraint = torch.cat((time_slice, constraint), 2)
-
-            no_constraint = output_no_constraints[time_index + 1][None, :, :]
-            time_slice_no_constraint = torch.cat((time_slice, no_constraint), 2)
-
-            input_constraint = time_slice_constraint
-            input_no_constraint = time_slice_no_constraint
-
-            output_gen_no_constraint, hidden_no_constraint = constraint_model.lstm_generation(input_no_constraint,
-                                                                                              hidden_no_constraint)
-            output_gen_constraint, hidden_constraint = constraint_model.lstm_generation(input_constraint,
-                                                                                        hidden_constraint)
-
-            if timesteps + sequence_length > time_index >= timesteps - 1:
-                # distributed NN on output
-
-                # constraint_model
-                # first time index
-                weights_constraint = F.relu(constraint_model.linear_1(output_gen_constraint[0, :, :]))
-                weights_constraint = constraint_model.linear_2(weights_constraint)
-                # compute predictions
-                preds_constraint = F.softmax(weights_constraint)
-
-                # first time index
-                weights_no_constraint = F.relu(constraint_model.linear_1(output_gen_no_constraint[0, :, :]))
-                weights_no_constraint = constraint_model.linear_2(weights_no_constraint)
-                # compute predictions
-                preds_no_constraint = F.softmax(weights_no_constraint)
-
-                preds_no_constraint = preds_no_constraint[0].data.cpu().numpy()
-                preds_constraint = preds_constraint[0].data.cpu().numpy()
-
-                # compute KL
-                kl_no_constraint2constraint = np.sum(preds_no_constraint * np.array(
-                    [np.log(p / q) if p > 1e-10 else 0 for (p, q) in zip(preds_no_constraint, preds_constraint)]))
-                kls_nc2c.append(kl_no_constraint2constraint)
-
-                kl_constraint2no_constraint = np.sum(preds_constraint * np.array(
-                    [np.log(p / q) if p > 1e-10 else 0 for (p, q) in zip(preds_constraint, preds_no_constraint)]))
-                kls_c2nc.append(kl_constraint2no_constraint)
-
-                # first batch element
-                new_pitch_index = np.random.choice(np.arange(num_pitches), p=preds_constraint)
-
-                seq[time_index + 1] = new_pitch_index
-                print(time_index, preds_constraint[new_pitch_index], preds_no_constraint[new_pitch_index],
-                      kl_no_constraint2constraint, kl_constraint2no_constraint)
-
-    # # print
-    for t, index in enumerate(seq):
-        print(t, index)
-    # print(kls_sc)
+        x.append(logprobas_no_constraint)
+        y.append(logprobas_constraint)
 
     # plot
     plt.clf()
-    p1 = plt.plot(np.arange(sequence_length), kls_nc2c[:sequence_length])
-    p2 = plt.plot(np.arange(sequence_length), kls_c2nc[:sequence_length])
-    plt.legend([p1, p2], ['kl_nc2c', 'kl_c2nc'])
+    plt.plot(x, y, 'o')
     plt.show()
 
-    indexed_seq_to_score(seq[timesteps:-timesteps], index2notes[SOP_INDEX], note2indexes[SOP_INDEX]).show()
+    if csv_filepath:
+        with open(csv_filepath, 'w') as f:
+            f.write('x, y')
+            for i in range(len(x)):
+                f.write(f'{x[i]}, {y[i]}')
 
-    return seq
 
 
 if __name__ == '__main__':
@@ -1152,8 +1073,8 @@ if __name__ == '__main__':
     optimizer = torch.optim.Adam(constraint_model.parameters())
 
     constraint_model.load()
-    # constraint_model.train_model(batches_per_epoch=batches_per_epoch, num_epochs=50, plot=True)
-    # constraint_model.save()
+    constraint_model.train_model(batches_per_epoch=batches_per_epoch, num_epochs=1000, plot=True)
+    constraint_model.save()
 
     # simple model:
     # simple_model = SimpleLSTM(num_features=num_features, num_units_linear=256, num_layers=2)
@@ -1163,9 +1084,11 @@ if __name__ == '__main__':
     # simple_model.train_model(batches_per_epoch=batches_per_epoch, num_epochs=100, plot=True)
     # simple_model.save()
 
+    # constraint_model.generate_bis(sequence_length=120)
     # constraint_model.generate(sequence_length=120)
 
     # constraint_model.load()
     # simple_model.load()
 
     # comparison_same_model(constraint_model, sequence_length=100)
+    plot_proba_ratios(constraint_model, num_points=10000, csv_filepath='results/proba_ratios.csv')
