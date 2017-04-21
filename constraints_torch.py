@@ -595,7 +595,7 @@ def mean_crossentropy_loss(output_seq, targets_seq, num_skipped=0, constraint=No
     :rtype: 
     """
     assert output_seq.size()[:-1] == targets_seq.size()
-    lambda_reg = 10
+    lambda_reg = 1.
     seq_length = output_seq.size()[0]
     batch_size = output_seq.size()[1]
     num_features = output_seq.size()[2]
