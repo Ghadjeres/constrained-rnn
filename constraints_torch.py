@@ -420,7 +420,7 @@ class ConstraintModel(nn.Module):
             )
             optimizer.zero_grad()
             output = self((input_seq, constraint))
-            loss = mean_crossentropy_loss(output, input_seq_index, num_skipped=num_skipped)
+            loss = mean_crossentropy_loss(output, input_seq_index, num_skipped=num_skipped, constraint=constraint)
             if train:
                 loss.backward()
                 optimizer.step()
@@ -433,10 +433,10 @@ class ConstraintModel(nn.Module):
 
     def train_model(self, batches_per_epoch, num_epochs, plot=False):
         generator_train = generator(batch_size=batch_size, timesteps=sequence_length,
-                                    prob_constraint=0.1,
+                                    prob_constraint=0.25,
                                     phase='train')
         generator_val = generator(batch_size=batch_size, timesteps=sequence_length,
-                                  prob_constraint=0.1,
+                                  prob_constraint=0.25,
                                   phase='test')
 
         if plot:
@@ -667,7 +667,7 @@ class ConstraintModel(nn.Module):
         seq[-timesteps:] = np.full((timesteps,), fill_value=end_index)
 
         # add constraints
-        c_indexes = [timesteps, 32 + timesteps, 64 + timesteps]
+        c_indexes = [timesteps, 16 + timesteps, 32 + timesteps, 64 + timesteps]
         for c_index in c_indexes:
             seq[c_index] = 11
         seq[64 + timesteps] = 32
@@ -752,9 +752,11 @@ class ConstraintModel(nn.Module):
 #     return sum / (seq_length - 2 * num_skipped)
 
 
-def mean_crossentropy_loss(output_seq, targets_seq, num_skipped=0):
+def mean_crossentropy_loss(output_seq, targets_seq, num_skipped=0, constraint=None):
     """
 
+    :param constraint: (seq_length, batch_size, num_features + 1)
+    :type constraint: 
     :param output_seq: (seq_length, batch_size, num_features) of weights for each features
     :type output_seq: 
     :param targets_seq: (seq_length, batch_size) of class indexes (between 0 and num_features -1) 
@@ -763,6 +765,7 @@ def mean_crossentropy_loss(output_seq, targets_seq, num_skipped=0):
     :rtype: 
     """
     assert output_seq.size()[:-1] == targets_seq.size()
+    lambda_reg = 10.
     seq_length = output_seq.size()[0]
 
     cross_entropy = nn.CrossEntropyLoss(size_average=True)
@@ -771,9 +774,17 @@ def mean_crossentropy_loss(output_seq, targets_seq, num_skipped=0):
     # t = int(seq_length / 2)
     # return cross_entropy(output_seq[t], targets_seq[t])
 
+
     sum = 0
     for t in range(22, 26):
-        sum += cross_entropy(output_seq[t], targets_seq[t])
+        ce = cross_entropy(output_seq[t], targets_seq[t])
+        # add a stronger penalty on constrained notes
+        if constraint:
+            lambdas = (constraint[t, :, -1] == 0) * (lambda_reg - 1) + 1
+            sum += lambdas * ce
+        else:
+            sum += ce
+
     return sum / 4
 
 
@@ -975,7 +986,6 @@ def plot_proba_ratios(constraint_model: ConstraintModel, num_points=1000, sequen
     # todo timesteps useless
     timesteps = 16
 
-
     slur_index, start_index, end_index = [note2indexes[SOP_INDEX][s] for s in [SLUR_SYMBOL,
                                                                                START_SYMBOL,
                                                                                END_SYMBOL]]
@@ -1012,10 +1022,11 @@ def plot_proba_ratios(constraint_model: ConstraintModel, num_points=1000, sequen
 
     # __________CONSTRAINTS___________
     # add constraints
-    c_indexes = [timesteps, 32 + timesteps, 64 + timesteps]
-    for c_index in c_indexes:
-        seq[c_index] = 11
-    seq[48 + timesteps] = 32
+    # c_indexes = [timesteps, 32 + timesteps, 64 + timesteps]
+    # for c_index in c_indexes:
+    #     seq[c_index] = 11
+    seq[32 + timesteps] = 32
+    seq[16 + timesteps] = 11
 
     # # only seq_constraints is onehot
     seq_constraints = chorale_to_onehot(
@@ -1055,10 +1066,9 @@ def plot_proba_ratios(constraint_model: ConstraintModel, num_points=1000, sequen
 
     if csv_filepath:
         with open(csv_filepath, 'w') as f:
-            f.write('x, y')
+            f.write('no_constraint, constraint\n')
             for i in range(len(x)):
-                f.write(f'{x[i]}, {y[i]}')
-
+                f.write(f'{x[i]}, {y[i]}\n')
 
 
 if __name__ == '__main__':
@@ -1073,7 +1083,7 @@ if __name__ == '__main__':
     optimizer = torch.optim.Adam(constraint_model.parameters())
 
     constraint_model.load()
-    constraint_model.train_model(batches_per_epoch=batches_per_epoch, num_epochs=1000, plot=True)
+    constraint_model.train_model(batches_per_epoch=batches_per_epoch, num_epochs=50, plot=True)
     constraint_model.save()
 
     # simple model:
@@ -1084,11 +1094,11 @@ if __name__ == '__main__':
     # simple_model.train_model(batches_per_epoch=batches_per_epoch, num_epochs=100, plot=True)
     # simple_model.save()
 
-    # constraint_model.generate_bis(sequence_length=120)
-    # constraint_model.generate(sequence_length=120)
+    constraint_model.generate_bis(sequence_length=120)
+    constraint_model.generate(sequence_length=120)
 
     # constraint_model.load()
     # simple_model.load()
 
     # comparison_same_model(constraint_model, sequence_length=100)
-    plot_proba_ratios(constraint_model, num_points=10000, csv_filepath='results/proba_ratios.csv')
+    # plot_proba_ratios(constraint_model, num_points=1000, csv_filepath='results/proba_ratios_2constraint.csv')
