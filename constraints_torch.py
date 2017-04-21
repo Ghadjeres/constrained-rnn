@@ -38,6 +38,8 @@ def generator(batch_size, timesteps, phase, prob_constraint=0.05, percentage_tra
 
     batch = 0
 
+    p = prob_constraint
+
     while True:
         chorale_index = np.random.choice(chorale_indices)
         chorales = X[chorale_index]
@@ -62,7 +64,11 @@ def generator(batch_size, timesteps, phase, prob_constraint=0.05, percentage_tra
 
         # mask constraint with additional symbol
         constraint = input_seq[time_index: time_index + timesteps].copy()
-        mask = np.random.rand(timesteps) > prob_constraint
+
+        # random choice for prob constraint
+        if prob_constraint is None:
+            p = np.random.rand() / 3.
+        mask = np.random.rand(timesteps) > p
         for i in range(timesteps):
             if mask[i]:
                 constraint[i] = num_pitches
@@ -208,6 +214,7 @@ class ConstraintModel(nn.Module):
     def loss_and_acc_on_epoch(self, batches_per_epoch, generator, train=True, num_skipped=20):
         mean_loss = 0
         mean_accuracy = 0
+        sum_constraints, num_constraints = 0, 0
         for sample_id, next_element in tqdm(enumerate(islice(generator, batches_per_epoch))):
             input_seq = next_element['input_seq']
             constraint = next_element['constraint']
@@ -228,16 +235,20 @@ class ConstraintModel(nn.Module):
 
             # compute mean loss and accuracy
             mean_loss += loss.data.mean()
-            mean_accuracy += accuracy(output_seq=output, targets_seq=input_seq_index, num_skipped=num_skipped)
+            seq_accuracy, (sum_constraint, num_constraint) = accuracy(output_seq=output, targets_seq=input_seq_index,
+                                                                      num_skipped=num_skipped, constraint=constraint)
+            mean_accuracy += seq_accuracy
+            sum_constraints += sum_constraint
+            num_constraints += num_constraint
 
-        return mean_loss / batches_per_epoch, mean_accuracy / batches_per_epoch
+        return mean_loss / batches_per_epoch, mean_accuracy / batches_per_epoch, sum_constraints / num_constraints
 
     def train_model(self, batches_per_epoch, num_epochs, plot=False):
         generator_train = generator(batch_size=batch_size, timesteps=sequence_length,
-                                    prob_constraint=0.25,
+                                    prob_constraint=None,
                                     phase='train')
         generator_val = generator(batch_size=batch_size, timesteps=sequence_length,
-                                  prob_constraint=0.25,
+                                  prob_constraint=None,
                                   phase='test')
 
         if plot:
@@ -245,26 +256,44 @@ class ConstraintModel(nn.Module):
             # plt.ion()
             # fig = plt.figure()
             # ax = fig.add_subplot(111)
-            fig, axarr = plt.subplots(2, sharex=True)
+            fig, axarr = plt.subplots(3, sharex=True)
             x, y_loss, y_acc = [], [], []
+            y_val_loss, y_val_acc = [], []
+            y_constraint_acc, y_constraint_val_acc = [], []
             # line1, = ax.plot(x, y, 'ko')
             fig.show()
 
         for epoch_index in range(num_epochs):
             self.train()
-            mean_loss, mean_accuracy = self.loss_and_acc_on_epoch(batches_per_epoch=batches_per_epoch,
-                                                                  generator=generator_train, train=True)
+            mean_loss, mean_accuracy, constraint_accuracy = self.loss_and_acc_on_epoch(
+                batches_per_epoch=batches_per_epoch,
+                generator=generator_train, train=True)
             self.eval()
-            mean_val_loss, mean_val_accuracy = self.loss_and_acc_on_epoch(batches_per_epoch=int(batches_per_epoch / 5),
-                                                                          generator=generator_val, train=False)
-            print(f'Train Epoch: {epoch_index}/{num_epochs} \tLoss: {mean_loss}\tAccuracy: {mean_accuracy * 100} %')
-            print(f'\tValidation Loss: {mean_val_loss}\tValidation Accuracy: {mean_val_accuracy * 100} %')
+            mean_val_loss, mean_val_accuracy, constraint_val_accuracy = self.loss_and_acc_on_epoch(
+                batches_per_epoch=int(batches_per_epoch / 5),
+                generator=generator_val, train=False)
+            print(
+                f'Train Epoch: {epoch_index}/{num_epochs} \tLoss: {mean_loss}\tAccuracy: {mean_accuracy * 100} %'
+                f'\tConstraint Accuracy: {constraint_accuracy * 100} %')
+            print(
+                f'\tValidation Loss: {mean_val_loss}\tValidation Accuracy: {mean_val_accuracy * 100} %'
+                f'\tConstraint Accuracy: {constraint_val_accuracy * 100} %')
+
             if plot:
                 x.append(epoch_index)
+
                 y_loss.append(mean_loss)
                 y_acc.append(mean_accuracy * 100)
-                axarr[0].plot(x, y_loss, 'r-')
-                axarr[1].plot(x, y_acc, 'r-')
+
+                y_val_loss.append(mean_val_loss)
+                y_val_acc.append(mean_val_accuracy * 100)
+
+                y_constraint_acc.append(constraint_accuracy * 100)
+                y_constraint_val_acc.append(constraint_val_accuracy * 100)
+
+                axarr[0].plot(x, y_loss, 'r-', x, y_val_loss, 'r--')
+                axarr[1].plot(x, y_acc, 'r-', x, y_val_acc, 'r--')
+                axarr[2].plot(x, y_constraint_acc, 'r-', x, y_constraint_val_acc, 'r--')
                 fig.canvas.draw()
                 plt.pause(0.001)
 
@@ -566,8 +595,10 @@ def mean_crossentropy_loss(output_seq, targets_seq, num_skipped=0, constraint=No
     :rtype: 
     """
     assert output_seq.size()[:-1] == targets_seq.size()
-    lambda_reg = 10.
+    lambda_reg = 10
     seq_length = output_seq.size()[0]
+    batch_size = output_seq.size()[1]
+    num_features = output_seq.size()[2]
 
     cross_entropy = nn.CrossEntropyLoss(size_average=True)
 
@@ -578,17 +609,20 @@ def mean_crossentropy_loss(output_seq, targets_seq, num_skipped=0, constraint=No
     sum = 0
     for t in range(22, 26):
         ce = cross_entropy(output_seq[t], targets_seq[t])
+        sum += ce
+
         # add a stronger penalty on constrained notes
         if constraint:
-            lambdas = (constraint[t, :, -1] == 0) * (lambda_reg - 1) + 1
-            sum += lambdas * ce
-        else:
-            sum += ce
+            batch_mask = (constraint[t, :, -1] < 0.1)
+            mask = batch_mask.view(batch_size, 1).expand(batch_size, num_features)
+            ce_constraint = cross_entropy(output_seq[t][mask].view(-1, num_features),
+                                          targets_seq[t][batch_mask])
+            sum += lambda_reg * ce_constraint
 
     return sum / 4
 
 
-def accuracy(output_seq, targets_seq, num_skipped=0):
+def accuracy(output_seq, targets_seq, num_skipped=0, constraint=None):
     """
 
     :param output_seq: (seq_length, batch_size, num_features) of weights for each features
@@ -602,20 +636,21 @@ def accuracy(output_seq, targets_seq, num_skipped=0):
     seq_length = output_seq.size()[0]
     batch_size = output_seq.size()[1]
     sum = 0
-
+    sum_constraint = 0
+    num_constraint = 0
     # all many timesteps
     num_skipped = 22
     for t in range(num_skipped, seq_length - num_skipped):
         max_values, max_indices = output_seq[t].max(1)
         correct = max_indices[:, 0] == targets_seq[t]
         sum += correct.data.sum() / batch_size
-    return sum / (seq_length - 2 * num_skipped)
 
-    # only retain one timestep
-    t = int(seq_length / 2)
-    max_values, max_indices = output_seq[t].max(1)
-    correct = max_indices[:, 0] == targets_seq[t]
-    return correct.data.sum() / batch_size
+        if constraint:
+            is_constrained = constraint[t, :, -1] < 0.1
+            num_constraint += is_constrained.data.sum()
+            sum_constraint += ((max_indices[:, 0] == targets_seq[t]) * is_constrained).data.sum()
+
+    return sum / (seq_length - 2 * num_skipped), (sum_constraint, num_constraint)
 
 
 def comparison_same_model(constraint_model: ConstraintModel, sequence_length=120):
@@ -883,7 +918,7 @@ if __name__ == '__main__':
     optimizer = torch.optim.Adam(constraint_model.parameters())
 
     constraint_model.load()
-    constraint_model.train_model(batches_per_epoch=batches_per_epoch, num_epochs=50, plot=True)
+    constraint_model.train_model(batches_per_epoch=batches_per_epoch, num_epochs=70, plot=True)
     constraint_model.save()
 
     # simple model:
