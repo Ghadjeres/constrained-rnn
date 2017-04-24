@@ -595,7 +595,8 @@ def mean_crossentropy_loss(output_seq, targets_seq, num_skipped=0, constraint=No
     :rtype: 
     """
     assert output_seq.size()[:-1] == targets_seq.size()
-    lambda_reg = 1.
+    lambda_reg = 0.
+    constraint = None
     seq_length = output_seq.size()[0]
     batch_size = output_seq.size()[1]
     num_features = output_seq.size()[2]
@@ -857,9 +858,9 @@ def plot_proba_ratios(constraint_model: ConstraintModel, num_points=1000, sequen
 
     # __________CONSTRAINTS___________
     # add constraints
-    # c_indexes = [timesteps, 32 + timesteps, 64 + timesteps]
-    # for c_index in c_indexes:
-    #     seq[c_index] = 11
+    c_indexes = [timesteps, 32 + timesteps, 64 + timesteps]
+    for c_index in c_indexes:
+        seq[c_index] = 11
     seq[32 + timesteps] = 32
     seq[16 + timesteps] = 11
 
@@ -918,7 +919,7 @@ if __name__ == '__main__':
     optimizer = torch.optim.Adam(constraint_model.parameters())
 
     constraint_model.load()
-    constraint_model.train_model(batches_per_epoch=batches_per_epoch, num_epochs=70, plot=True)
+    constraint_model.train_model(batches_per_epoch=batches_per_epoch, num_epochs=2000, plot=True)
     constraint_model.save()
 
     # simple model:
@@ -929,11 +930,11 @@ if __name__ == '__main__':
     # simple_model.train_model(batches_per_epoch=batches_per_epoch, num_epochs=100, plot=True)
     # simple_model.save()
 
-    constraint_model.generate_bis(sequence_length=120)
-    constraint_model.generate(sequence_length=120)
+    # constraint_model.generate_bis(sequence_length=120)
+    # constraint_model.generate(sequence_length=120)
 
     # constraint_model.load()
     # simple_model.load()
 
-    # comparison_same_model(constraint_model, sequence_length=100)
-    # plot_proba_ratios(constraint_model, num_points=1000, csv_filepath='results/proba_ratios_2constraint.csv')
+    comparison_same_model(constraint_model, sequence_length=100)
+    plot_proba_ratios(constraint_model, num_points=1000, csv_filepath='results/proba_ratios_4constraint.csv')
