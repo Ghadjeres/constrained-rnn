@@ -67,7 +67,7 @@ def generator(batch_size, timesteps, phase, prob_constraint=0.05, percentage_tra
 
         # random choice for prob constraint
         if prob_constraint is None:
-            p = np.random.rand() / 3.
+            p = np.random.rand()
         mask = np.random.rand(timesteps) > p
         for i in range(timesteps):
             if mask[i]:
@@ -331,8 +331,8 @@ class ConstraintModel(nn.Module):
         # seq_constraints = Variable(torch.Tensor(seq_constraints).cuda())
         #
         # # constraints:
-        hidden = (Variable(torch.rand(self.num_layers, 1, self.num_lstm_constraints_units).cuda()),
-                  Variable(torch.rand(self.num_layers, 1, self.num_lstm_constraints_units).cuda()))
+        hidden = (Variable(torch.rand(self.num_layers, 1, self.num_lstm_constraints_units).cuda(), volatile=True),
+                  Variable(torch.rand(self.num_layers, 1, self.num_lstm_constraints_units).cuda(), volatile=True))
 
         # # compute constraints -> in reverse order
         # idx = [i for i in range(seq_constraints.size(0) - 1, -1, -1)]
@@ -345,10 +345,10 @@ class ConstraintModel(nn.Module):
         # generation:
         for time_index in range(-1, sequence_length + - 1):
             if time_index == -1:
-                time_slice = Variable(torch.zeros(1, 1, self.num_features).cuda())
+                time_slice = Variable(torch.zeros(1, 1, self.num_features).cuda(), volatile=True)
             else:
                 time_slice = Variable(torch.FloatTensor(
-                    to_onehot(seq[time_index], num_indexes=self.num_features)[None, None, :]).cuda())
+                    to_onehot(seq[time_index], num_indexes=self.num_features)[None, None, :]).cuda(), volatile=True)
 
             constraint = output_constraints[time_index + 1][None, :, :]
             time_slice_cat = torch.cat((time_slice, constraint), 2)
@@ -390,29 +390,30 @@ class ConstraintModel(nn.Module):
         )[:, None, :]
 
         # convert seq_constraints to Variable
-        seq_constraints = Variable(torch.Tensor(seq_constraints).cuda())
+        seq_constraints = Variable(torch.Tensor(seq_constraints).cuda(), volatile=True)
 
         # constraints:
-        hidden = (Variable(torch.rand(self.num_layers, 1, self.num_lstm_constraints_units).cuda()),
-                  Variable(torch.rand(self.num_layers, 1, self.num_lstm_constraints_units).cuda()))
+        hidden = (Variable(torch.rand(self.num_layers, 1, self.num_lstm_constraints_units).cuda(), volatile=True),
+                  Variable(torch.rand(self.num_layers, 1, self.num_lstm_constraints_units).cuda(), volatile=True))
 
         # compute constraints -> in reverse order
         idx = [i for i in range(seq_constraints.size(0) - 1, -1, -1)]
-        idx = Variable(torch.LongTensor(idx)).cuda()
+        idx = Variable(torch.LongTensor(idx).cuda(), volatile=True)
         seq_constraints = seq_constraints.index_select(0, idx)
         output_constraints, hidden = self.lstm_constraint(seq_constraints, hidden)
         output_constraints = output_constraints.index_select(0, idx)
 
         # # generation:
-        hidden = (Variable(torch.rand(self.num_layers, 1, self.num_lstm_generation_units).cuda()),
-                  Variable(torch.rand(self.num_layers, 1, self.num_lstm_generation_units).cuda()))
+        hidden = (Variable(torch.rand(self.num_layers, 1, self.num_lstm_generation_units).cuda(), volatile=True),
+                  Variable(torch.rand(self.num_layers, 1, self.num_lstm_generation_units).cuda(), volatile=True))
         # generation:
         for time_index in range(-1, sequence_length + - 1):
             if time_index == -1:
-                time_slice = Variable(torch.zeros(1, 1, self.num_features).cuda())
+                time_slice = Variable(torch.zeros(1, 1, self.num_features).cuda(), volatile=True)
             else:
                 time_slice = Variable(torch.FloatTensor(
-                    to_onehot(indexed_seq[time_index], num_indexes=self.num_features)[None, None, :]).cuda())
+                    to_onehot(indexed_seq[time_index], num_indexes=self.num_features)[None, None, :]).cuda(),
+                                      volatile=True)
 
             constraint = output_constraints[time_index + 1][None, :, :]
             time_slice_cat = torch.cat((time_slice, constraint), 2)
@@ -431,7 +432,8 @@ class ConstraintModel(nn.Module):
                 preds = preds[0].data.cpu().numpy()
                 new_pitch_index = np.random.choice(np.arange(num_pitches), p=preds)
                 indexed_seq[time_index + 1] = new_pitch_index
-        return indexed_seq[padding:-padding]
+        # return indexed_seq[padding:-padding]
+        return indexed_seq
 
     def generate_bis(self, sequence_length=160):
         _, voice_ids, index2notes, note2indexes, metadatas = pickle.load(open(dataset_filepath, 'rb'))
@@ -509,29 +511,29 @@ class ConstraintModel(nn.Module):
         )[:, None, :]
 
         # convert seq_constraints to Variable
-        seq_constraints = Variable(torch.Tensor(seq_constraints).cuda())
+        seq_constraints = Variable(torch.Tensor(seq_constraints).cuda(), volatile=True)
 
         # constraints:
-        hidden = (Variable(torch.rand(self.num_layers, 1, self.num_lstm_constraints_units).cuda()),
-                  Variable(torch.rand(self.num_layers, 1, self.num_lstm_constraints_units).cuda()))
+        hidden = (Variable(torch.rand(self.num_layers, 1, self.num_lstm_constraints_units).cuda(), volatile=True),
+                  Variable(torch.rand(self.num_layers, 1, self.num_lstm_constraints_units).cuda(), volatile=True))
 
         # compute constraints -> in reverse order
         idx = [i for i in range(seq_constraints.size(0) - 1, -1, -1)]
-        idx = Variable(torch.LongTensor(idx)).cuda()
+        idx = Variable(torch.LongTensor(idx).cuda(), volatile=True)
         seq_constraints = seq_constraints.index_select(0, idx)
         output_constraints, hidden = self.lstm_constraint(seq_constraints, hidden)
         output_constraints = output_constraints.index_select(0, idx)
 
         # # generation:
-        hidden = (Variable(torch.rand(self.num_layers, 1, self.num_lstm_generation_units).cuda()),
-                  Variable(torch.rand(self.num_layers, 1, self.num_lstm_generation_units).cuda()))
+        hidden = (Variable(torch.rand(self.num_layers, 1, self.num_lstm_generation_units).cuda(), volatile=True),
+                  Variable(torch.rand(self.num_layers, 1, self.num_lstm_generation_units).cuda(), volatile=True))
         # generation:
         for time_index in range(-1, sequence_length + timesteps * 2 - 1):
             if time_index == -1:
-                time_slice = Variable(torch.zeros(1, 1, num_features).cuda())
+                time_slice = Variable(torch.zeros(1, 1, num_features).cuda(), volatile=True)
             else:
                 time_slice = Variable(torch.FloatTensor(
-                    to_onehot(seq[time_index], num_indexes=self.num_features)[None, None, :]).cuda())
+                    to_onehot(seq[time_index], num_indexes=self.num_features)[None, None, :]).cuda(), volatile=True)
 
             constraint = output_constraints[time_index + 1][None, :, :]
             time_slice_cat = torch.cat((time_slice, constraint), 2)
@@ -689,16 +691,18 @@ def comparison_same_model(constraint_model: ConstraintModel, sequence_length=120
     )[:, None, :]
 
     # convert seq_no_constraints to Variable
-    seq_no_constraints = Variable(torch.Tensor(seq_no_constraints).cuda())
+    seq_no_constraints = Variable(torch.Tensor(seq_no_constraints).cuda(), volatile=True)
 
     # constraints:
     hidden_constraints_init = (
-        Variable(torch.rand(constraint_model.num_layers, 1, constraint_model.num_lstm_constraints_units).cuda()),
-        Variable(torch.rand(constraint_model.num_layers, 1, constraint_model.num_lstm_constraints_units).cuda()))
+        Variable(torch.rand(constraint_model.num_layers, 1, constraint_model.num_lstm_constraints_units).cuda(),
+                 volatile=True),
+        Variable(torch.rand(constraint_model.num_layers, 1, constraint_model.num_lstm_constraints_units).cuda(),
+                 volatile=True))
 
     # compute no constraints -> in reverse order
     idx = [i for i in range(seq_no_constraints.size(0) - 1, -1, -1)]
-    idx = Variable(torch.LongTensor(idx)).cuda()
+    idx = Variable(torch.LongTensor(idx).cuda(), volatile=True)
     seq_no_constraints = seq_no_constraints.index_select(0, idx)
     output_no_constraints, hidden = constraint_model.lstm_constraint(seq_no_constraints, hidden_constraints_init)
     output_no_constraints = output_no_constraints.index_select(0, idx)
@@ -718,32 +722,32 @@ def comparison_same_model(constraint_model: ConstraintModel, sequence_length=120
     )[:, None, :]
 
     # convert seq_constraints to Variable
-    seq_constraints = Variable(torch.Tensor(seq_constraints).cuda())
+    seq_constraints = Variable(torch.Tensor(seq_constraints).cuda(), volatile=True)
 
     # compute constraints -> in reverse order
     # same hidden state initialization
     idx = [i for i in range(seq_constraints.size(0) - 1, -1, -1)]
-    idx = Variable(torch.LongTensor(idx)).cuda()
+    idx = Variable(torch.LongTensor(idx).cuda(), volatile=True)
     seq_constraints = seq_constraints.index_select(0, idx)
     output_constraints, hidden = constraint_model.lstm_constraint(seq_constraints, hidden_constraints_init)
     output_constraints = output_constraints.index_select(0, idx)
 
     # # generation:
     hidden_constraint = (
-        Variable(torch.rand(constraint_model.num_layers, 1, constraint_model.num_lstm_generation_units).cuda()),
-        Variable(torch.rand(constraint_model.num_layers, 1, constraint_model.num_lstm_generation_units).cuda()))
+        Variable(torch.rand(constraint_model.num_layers, 1, constraint_model.num_lstm_generation_units).cuda(), volatile=True),
+        Variable(torch.rand(constraint_model.num_layers, 1, constraint_model.num_lstm_generation_units).cuda(), volatile=True))
 
     hidden_no_constraint = (
-        Variable(torch.rand(constraint_model.num_layers, 1, constraint_model.num_lstm_generation_units).cuda()),
-        Variable(torch.rand(constraint_model.num_layers, 1, constraint_model.num_lstm_generation_units).cuda()))
+        Variable(torch.rand(constraint_model.num_layers, 1, constraint_model.num_lstm_generation_units).cuda(), volatile=True),
+        Variable(torch.rand(constraint_model.num_layers, 1, constraint_model.num_lstm_generation_units).cuda(), volatile=True))
 
     # generation:
     for time_index in range(-1, sequence_length + timesteps * 2 - 1):
         if time_index == -1:
-            time_slice = Variable(torch.zeros(1, 1, num_features).cuda())
+            time_slice = Variable(torch.zeros(1, 1, num_features).cuda(), volatile=True)
         else:
             time_slice = Variable(torch.FloatTensor(
-                to_onehot(seq[time_index], num_indexes=constraint_model.num_features)[None, None, :]).cuda())
+                to_onehot(seq[time_index], num_indexes=constraint_model.num_features)[None, None, :]).cuda(), volatile=True)
 
         constraint = output_constraints[time_index + 1][None, :, :]
         time_slice_constraint = torch.cat((time_slice, constraint), 2)
@@ -842,16 +846,16 @@ def plot_proba_ratios(constraint_model: ConstraintModel, num_points=1000, sequen
     )[:, None, :]
 
     # convert seq_no_constraints to Variable
-    seq_no_constraints = Variable(torch.Tensor(seq_no_constraints).cuda())
+    seq_no_constraints = Variable(torch.Tensor(seq_no_constraints).cuda(), volatile=True)
 
     # constraints:
     hidden_constraints_init = (
-        Variable(torch.rand(constraint_model.num_layers, 1, constraint_model.num_lstm_constraints_units).cuda()),
-        Variable(torch.rand(constraint_model.num_layers, 1, constraint_model.num_lstm_constraints_units).cuda()))
+        Variable(torch.rand(constraint_model.num_layers, 1, constraint_model.num_lstm_constraints_units).cuda(), volatile=True),
+        Variable(torch.rand(constraint_model.num_layers, 1, constraint_model.num_lstm_constraints_units).cuda(), volatile=True))
 
     # compute no constraints -> in reverse order
     idx = [i for i in range(seq_no_constraints.size(0) - 1, -1, -1)]
-    idx = Variable(torch.LongTensor(idx)).cuda()
+    idx = Variable(torch.LongTensor(idx).cuda(), volatile=True)
     seq_no_constraints = seq_no_constraints.index_select(0, idx)
     output_no_constraints, hidden = constraint_model.lstm_constraint(seq_no_constraints, hidden_constraints_init)
     output_no_constraints = output_no_constraints.index_select(0, idx)
@@ -872,12 +876,12 @@ def plot_proba_ratios(constraint_model: ConstraintModel, num_points=1000, sequen
     )[:, None, :]
 
     # convert seq_constraints to Variable
-    seq_constraints = Variable(torch.Tensor(seq_constraints).cuda())
+    seq_constraints = Variable(torch.Tensor(seq_constraints).cuda(), volatile=True)
 
     # compute constraints -> in reverse order
     # same hidden state initialization
     idx = [i for i in range(seq_constraints.size(0) - 1, -1, -1)]
-    idx = Variable(torch.LongTensor(idx)).cuda()
+    idx = Variable(torch.LongTensor(idx).cuda(), volatile=True)
     seq_constraints = seq_constraints.index_select(0, idx)
     output_constraints, hidden = constraint_model.lstm_constraint(seq_constraints, hidden_constraints_init)
     output_constraints = output_constraints.index_select(0, idx)
@@ -902,9 +906,9 @@ def plot_proba_ratios(constraint_model: ConstraintModel, num_points=1000, sequen
 
     if csv_filepath:
         with open(csv_filepath, 'w') as f:
-            f.write('no_constraint, constraint\n')
+            f.write('no_constraint, constraint, which\n')
             for i in range(len(x)):
-                f.write(f'{x[i]}, {y[i]}\n')
+                f.write(f'{x[i]}, {y[i]}, unconstrained\n')
 
 
 if __name__ == '__main__':
@@ -919,8 +923,8 @@ if __name__ == '__main__':
     optimizer = torch.optim.Adam(constraint_model.parameters())
 
     constraint_model.load()
-    constraint_model.train_model(batches_per_epoch=batches_per_epoch, num_epochs=2000, plot=True)
-    constraint_model.save()
+    # constraint_model.train_model(batches_per_epoch=batches_per_epoch, num_epochs=500, plot=True)
+    # constraint_model.save()
 
     # simple model:
     # simple_model = SimpleLSTM(num_features=num_features, num_units_linear=256, num_layers=2)
@@ -936,5 +940,5 @@ if __name__ == '__main__':
     # constraint_model.load()
     # simple_model.load()
 
-    comparison_same_model(constraint_model, sequence_length=100)
-    plot_proba_ratios(constraint_model, num_points=1000, csv_filepath='results/proba_ratios_4constraint.csv')
+    # comparison_same_model(constraint_model, sequence_length=100)
+    plot_proba_ratios(constraint_model, num_points=200, csv_filepath='results/proba_ratios_4constraint.csv')
