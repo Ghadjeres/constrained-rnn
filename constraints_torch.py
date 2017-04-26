@@ -244,6 +244,7 @@ class ConstraintModel(nn.Module):
         return mean_loss / batches_per_epoch, mean_accuracy / batches_per_epoch, sum_constraints / num_constraints
 
     def train_model(self, batches_per_epoch, num_epochs, plot=False):
+        # todo batch_size to be defined lo=cally
         generator_train = generator(batch_size=batch_size, timesteps=sequence_length,
                                     prob_constraint=None,
                                     phase='train')
