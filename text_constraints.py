@@ -257,7 +257,7 @@ class ConstraintTextModel(nn.Module):
         return mean_loss / batches_per_epoch, mean_accuracy / batches_per_epoch, sum_constraints / num_constraints
 
     def train_model(self, batches_per_epoch, num_epochs, batch_size=32, sequence_length=128, num_skipped=64,
-                    plot=False):
+                    plot=False, save_every=False):
         generator_train = generator(batch_size=batch_size, timesteps=sequence_length,
                                     prob_constraint=None,
                                     phase='train')
@@ -310,6 +310,10 @@ class ConstraintTextModel(nn.Module):
                 axarr[2].plot(x, y_constraint_acc, 'r-', x, y_constraint_val_acc, 'r--')
                 fig.canvas.draw()
                 plt.pause(0.001)
+
+            if save_every and epoch_index % save_every == 0:
+                self.save()
+
 
     def save(self):
         torch.save(self.state_dict(), self.filepath)
@@ -455,20 +459,20 @@ if __name__ == '__main__':
     batches_per_epoch = 100
     num_skipped = 55
 
-    constraint_model = ConstraintTextModel(num_features=num_letters, num_units_linear=256, num_layers=2,
-                                           num_lstm_constraints_units=512,
-                                           num_lstm_generation_units=512)
-    constraint_model.cuda()
-
-    optimizer = torch.optim.Adam(constraint_model.parameters())
-
-    constraint_model.load()
-    constraint_model.train_model(batches_per_epoch=batches_per_epoch, num_epochs=1000, plot=True,
-                                 num_skipped=num_skipped)
-    constraint_model.save()
-
-    print(constraint_model.generate())
-    print(constraint_model.guess('I want to **************************************'))
+    # constraint_model = ConstraintTextModel(num_features=num_letters, num_units_linear=256, num_layers=2,
+    #                                        num_lstm_constraints_units=512,
+    #                                        num_lstm_generation_units=512)
+    # constraint_model.cuda()
+    #
+    # optimizer = torch.optim.Adam(constraint_model.parameters())
+    #
+    # constraint_model.load()
+    # constraint_model.train_model(batches_per_epoch=batches_per_epoch, num_epochs=1000, plot=True,
+    #                              num_skipped=num_skipped)
+    # constraint_model.save()
+    #
+    # print(constraint_model.generate())
+    # print(constraint_model.guess('.*************** I want to ***********************************'))
 
     # ----------------------------
     constraint_model = ConstraintTextModel(num_features=num_letters, num_units_linear=256, num_layers=3,
