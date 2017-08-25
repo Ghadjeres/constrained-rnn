@@ -4,6 +4,7 @@ import matplotlib.pyplot as plt
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from constraints.data_utils import MODELS_DIR
 from torch.autograd import Variable
 from tqdm import tqdm
 
@@ -25,6 +26,7 @@ class ConstraintModel(nn.Module):
         self.num_layers = num_layers
         self.dropout_input_prob = dropout_input_prob
         self.dropout_prob = dropout_prob
+        self.filepath = str(MODELS_DIR / self.__repr__())
 
         self.lstm_constraints_sizes = ([self.num_features + 1] +
                                        [
@@ -51,17 +53,19 @@ class ConstraintModel(nn.Module):
                                   num_units_linear)
         self.linear_2 = nn.Linear(self.num_units_linear, num_features)
 
-        # self.dropout = nn.Dropout(p=dropout_prob)
         self.dropout_input = nn.Dropout(p=dropout_input_prob)
 
     def __repr__(self):
-        return f'ConstraintModel(num_features={self.num_features},\
-                 num_lstm_constraints_units={self.num_lstm_constraints_units},\
-                 num_lstm_generation_units={self.num_lstm_generation_units},\
-                 num_units_linear={self.num_units_linear},\
-                 num_layers={self.num_layers},\
-                 dropout_input_prob={self.dropout_input_prob},\
-                 dropout_prob={self.dropout_prob})'
+        return (
+            f'ConstraintModel('
+            f'num_features={self.num_features},'
+            f'num_lstm_constraints_units={self.num_lstm_constraints_units},'
+            f'num_lstm_generation_units={self.num_lstm_generation_units},'
+            f'num_units_linear={self.num_units_linear},'
+            f'num_layers={self.num_layers},'
+            f'dropout_input_prob={self.dropout_input_prob},'
+            f'dropout_prob={self.dropout_prob})'
+        )
 
     def forward(self, x: Variable):
         """
@@ -127,9 +131,11 @@ class ConstraintModel(nn.Module):
 
     def save(self):
         torch.save(self.state_dict(), self.filepath)
+        print(f'Model {self.__repr__()} saved')
 
     def load(self):
         self.load_state_dict(torch.load(self.filepath))
+        print(f'Model {self.__repr__()} loaded')
 
     def evaluate_proba_(self, seq, output_constraints, padding=16):
         """

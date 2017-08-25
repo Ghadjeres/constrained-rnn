@@ -7,19 +7,14 @@ if __name__ == '__main__':
     num_skipped = 23
     batches_per_epoch = 100
 
-    gen = generator(batch_size=batch_size,
-                    timesteps=32,
-                    phase='train',
-                    prob_constraint=0.5)
-    a = next(gen)
-
     constraint_model = ConstraintModel(num_features=num_features,
-                                       num_units_linear=256, num_layers=2)
+                                       num_units_linear=256,
+                                       num_layers=2)
     model_manager = ModelManager(model=constraint_model,
                                  optimizer_name='adam',
                                  lr=1e-3,
                                  lambda_reg=1e-3)
-
+    model_manager.load()
     model_manager.train_model(batch_size=batch_size,
                               batches_per_epoch=batches_per_epoch,
                               sequence_length=sequence_length,

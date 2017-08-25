@@ -1,4 +1,6 @@
+import os
 import pickle
+from pathlib import Path
 
 import numpy as np
 from music21 import stream, note, duration
@@ -14,6 +16,8 @@ NO_CONSTRAINT = 'xx'
 EOS = 'EOS'
 SUBDIVISION = 4
 num_pitches = 55
+PACKAGE_DIR = Path(os.path.realpath(os.path.dirname(__file__)))
+MODELS_DIR = PACKAGE_DIR / 'models'
 
 
 def standard_note(note_or_rest_string):

@@ -28,7 +28,9 @@ class ModelManager:
     def save(self):
         self.model.save()
 
-    def loss_and_acc_on_epoch(self, batches_per_epoch, generator, train=True,
+    def loss_and_acc_on_epoch(self, batches_per_epoch,
+                              generator,
+                              train=True,
                               num_skipped=20):
         mean_loss = 0
         mean_accuracy = 0
@@ -65,15 +67,15 @@ class ModelManager:
 
         return (mean_loss / batches_per_epoch,
                 mean_accuracy / batches_per_epoch,
-                sum_constraints / num_constraints if num_constraints > 0
-                else -1)
+                sum_constraints / num_constraints)
 
     def train_model(self, batch_size,
                     batches_per_epoch,
                     num_epochs,
                     num_skipped,
                     sequence_length,
-                    plot=False):
+                    plot=False,
+                    save_every=2):
         generator_train = generator(batch_size=batch_size,
                                     timesteps=sequence_length,
                                     prob_constraint=None,
@@ -85,14 +87,11 @@ class ModelManager:
 
         if plot:
             import matplotlib.pyplot as plt
-            # plt.ion()
-            # fig = plt.figure()
-            # ax = fig.add_subplot(111)
+
             fig, axarr = plt.subplots(3, sharex=True)
             x, y_loss, y_acc = [], [], []
             y_val_loss, y_val_acc = [], []
             y_constraint_acc, y_constraint_val_acc = [], []
-            # line1, = ax.plot(x, y, 'ko')
             fig.show()
 
         for epoch_index in range(num_epochs):
@@ -120,6 +119,9 @@ class ModelManager:
                 f'\tValidation Loss: {mean_val_loss}\t'
                 f'Validation Accuracy: {mean_val_accuracy * 100} %\t'
                 f'Constraint Accuracy: {constraint_val_accuracy * 100} %')
+
+            if epoch_index % save_every == 0:
+                self.model.save()
 
             if plot:
                 x.append(epoch_index)

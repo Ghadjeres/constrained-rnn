@@ -98,3 +98,4 @@ ENV/
 logs/
 Supprimerait .idea/vcs.xml
 .idea/
+constraints/models/
