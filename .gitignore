@@ -97,3 +97,4 @@ ENV/
 
 logs/
 Supprimerait .idea/vcs.xml
+.idea/
