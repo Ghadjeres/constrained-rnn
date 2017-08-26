@@ -34,8 +34,10 @@ if __name__ == '__main__':
         ['F#4'] + [NO_CONSTRAINT] * 15 +
         ['E-5'] + [NO_CONSTRAINT] * 15
     )
-    model_manager.fill(unfilled_seq,
-                       show=True)
+    # model_manager.fill(unfilled_seq,
+    #                    show=True)
+    model_manager.compare(unfilled_seq,
+                          show=True)
 
     # simple model:
     # simple_model = SimpleLSTM(num_features=num_features, num_units_linear=256, num_layers=2)
