@@ -1,5 +1,5 @@
 from constraints.constraint_model import ConstraintModel
-from constraints.data_utils import generator
+from constraints.data_utils import NO_CONSTRAINT
 from constraints.model_manager import ModelManager
 
 if __name__ == '__main__':
@@ -14,14 +14,28 @@ if __name__ == '__main__':
                                  optimizer_name='adam',
                                  lr=1e-3,
                                  lambda_reg=1e-3)
+
+    # load
     model_manager.load()
-    model_manager.train_model(batch_size=batch_size,
-                              batches_per_epoch=batches_per_epoch,
-                              sequence_length=sequence_length,
-                              num_skipped=num_skipped,
-                              num_epochs=500,
-                              plot=True)
-    constraint_model.save()
+
+    # train
+    # model_manager.train_model(batch_size=batch_size,
+    #                           batches_per_epoch=batches_per_epoch,
+    #                           sequence_length=sequence_length,
+    #                           num_skipped=num_skipped,
+    #                           num_epochs=500,
+    #                           save_every=2,
+    #                           plot=True)
+
+
+    unfilled_seq = (
+        ['F4'] + [NO_CONSTRAINT] * 15 +
+        [NO_CONSTRAINT] * 16 +
+        ['F#4'] + [NO_CONSTRAINT] * 15 +
+        ['E-5'] + [NO_CONSTRAINT] * 15
+    )
+    model_manager.fill(unfilled_seq,
+                       show=True)
 
     # simple model:
     # simple_model = SimpleLSTM(num_features=num_features, num_units_linear=256, num_layers=2)

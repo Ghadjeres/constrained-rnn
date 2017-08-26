@@ -5,9 +5,18 @@ from torch.autograd import Variable
 from tqdm import tqdm
 
 from .constraint_model import ConstraintModel
-from .data_utils import generator
+from .data_utils import generator, get_tables, SOP_INDEX, NO_CONSTRAINT, \
+    num_pitches, indexed_seq_to_score, START_SYMBOL, END_SYMBOL
 from .loss import mean_crossentropy_loss, accuracy
 from .optimizers import optimizer_from_name
+
+
+def ascii_to_index(ascii_seq):
+    index2notes, note2indexes = get_tables()
+    indexed_seq = [note2indexes[SOP_INDEX][note]
+                   if note != NO_CONSTRAINT else num_pitches
+                   for note in ascii_seq]
+    return indexed_seq
 
 
 class ModelManager:
@@ -141,3 +150,21 @@ class ModelManager:
                               y_constraint_val_acc, 'r--')
                 fig.canvas.draw()
                 plt.pause(0.001)
+
+    def fill(self, ascii_seq, padding_size=16, show=False):
+        # padding
+        ascii_seq = ([START_SYMBOL] * padding_size +
+                     ascii_seq +
+                     [END_SYMBOL] * padding_size
+                     )
+        indexed_seq = ascii_to_index(ascii_seq)
+        result_indexed_seq = self.model._fill(indexed_seq,
+                                              padding_size=padding_size)
+        if show:
+            index2note, note2index = [t[SOP_INDEX] for t in get_tables()]
+            print(result_indexed_seq)
+            score = indexed_seq_to_score(result_indexed_seq,
+                                         index2note,
+                                         note2index)
+            score.show()
+        return result_indexed_seq

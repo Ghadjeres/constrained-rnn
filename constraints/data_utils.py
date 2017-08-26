@@ -106,6 +106,19 @@ def get_dataset(dataset_filepath=BACH_SOP_DATASET):
         open(dataset_filepath, 'rb'))
 
 
+def get_tables(dataset_filepath=BACH_SOP_DATASET):
+    """
+
+    :param dataset_filepath:
+    :type dataset_filepath:
+    :return: (index2notes, note2indexes) tuple
+    :rtype:
+    """
+    (X, voice_ids, index2notes, note2indexes, metadatas) = get_dataset(
+        dataset_filepath=dataset_filepath)
+    return index2notes, note2indexes
+
+
 def generator(batch_size,
               timesteps,
               phase: str = 'all',
