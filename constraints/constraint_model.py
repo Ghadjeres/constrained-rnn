@@ -69,6 +69,10 @@ class ConstraintModel(nn.Module):
             f'dropout_prob={self.dropout_prob})'
         )
 
+    def weights_from_output_gen_time_slice(self, time_slice):
+        weights = self.linear_2(F.relu(self.linear_1(time_slice)))
+        return weights
+
     def forward(self, x: Variable):
         """
 
@@ -97,21 +101,14 @@ class ConstraintModel(nn.Module):
             [Variable(torch.zeros(1, batch_size, self.num_features).cuda()),
              seq[:seq_length - 1, :, :]], 0)
 
-        # todo dropout only on offset_seq?
-        # offset_seq = self.dropout_input(offset_seq)
-
         input = torch.cat([offset_seq, output_constraints], 2)
         input = self.dropout_input(input)
         output_gen, hidden = self.lstm_generation(input, hidden)
 
         # distributed NN on output
-        weights = [F.relu(self.linear_1(time_slice)) for time_slice in
+        weights = [self.weights_from_output_gen_time_slice(time_slice)
+                   for time_slice in
                    output_gen]
-
-        # apparently CrossEntropy includes a LogSoftMax layer
-        weights = [self.linear_2(time_slice) for time_slice in weights]
-        # weights = [F.softmax(self.linear_2(time_slice)) for time_slice in weights]
-
         weights = torch.cat(weights)
         weights = weights.view(seq_length, batch_size, num_features)
         return weights
@@ -204,19 +201,10 @@ class ConstraintModel(nn.Module):
 
         # generation:
         for time_index in range(-1, sequence_length + - 1):
-            if time_index == -1:
-                time_slice = Variable(
-                    torch.zeros(1, 1, self.num_features).cuda(), volatile=True)
-            else:
-                time_slice = Variable(torch.FloatTensor(
-                    to_onehot(seq[time_index], num_indexes=self.num_features)[
-                    None, None, :]).cuda(), volatile=True)
-
-            constraint = output_constraints[time_index + 1][None, :, :]
-            time_slice_cat = torch.cat((time_slice, constraint), 2)
-
-            input = time_slice_cat
-            output_gen, hidden = self.lstm_generation(input, hidden)
+            output_gen, hidden = self.one_step_generation(seq,
+                                                          output_constraints,
+                                                          hidden,
+                                                          time_index)
             if sequence_length - padding > time_index >= padding - 1:
                 # distributed NN on output
                 # first time index
@@ -258,35 +246,28 @@ class ConstraintModel(nn.Module):
                                                       batch_size=1,
                                                       volatile=True)
 
-        # # generation:
+        # generation:
+
+        # hidden init
         hidden = (Variable(torch.rand(self.num_layers, 1,
                                       self.num_lstm_generation_units).cuda(),
                            volatile=True),
                   Variable(torch.rand(self.num_layers, 1,
                                       self.num_lstm_generation_units).cuda(),
                            volatile=True))
-        # generation:
-        for time_index in range(-1, sequence_length + - 1):
-            if time_index == -1:
-                time_slice = Variable(
-                    torch.zeros(1, 1, self.num_features).cuda(), volatile=True)
-            else:
-                time_slice = Variable(torch.FloatTensor(
-                    to_onehot(indexed_seq[time_index],
-                              num_indexes=self.num_features)[None, None,
-                    :]).cuda(),
-                                      volatile=True)
 
-            constraint = output_constraints[time_index + 1][None, :, :]
-            time_slice_cat = torch.cat((time_slice, constraint), 2)
-
-            input = time_slice_cat
-            output_gen, hidden = self.lstm_generation(input, hidden)
+        for time_index in range(-1, sequence_length - 1):
+            output_gen, hidden = self.one_step_generation(indexed_seq,
+                                                          output_constraints,
+                                                          hidden,
+                                                          time_index,
+                                                          volatile=True)
             if sequence_length - padding_size > time_index >= padding_size - 1:
                 # distributed NN on output
-                # first time index
-                weights = F.relu(self.linear_1(output_gen[0, :, :]))
-                weights = self.linear_2(weights)
+                # only first time index is used
+                weights = self.weights_from_output_gen_time_slice(
+                    output_gen[0]
+                )
                 # compute predictions
                 preds = F.softmax(weights)
 
@@ -296,6 +277,39 @@ class ConstraintModel(nn.Module):
                                                    p=preds)
                 indexed_seq[time_index + 1] = new_pitch_index
         return indexed_seq[padding_size:-padding_size]
+
+    def one_step_generation(self, indexed_seq, output_constraints, hidden,
+                            time_index, volatile=False):
+        """
+        compute lstm_generation using output_constraints and indexed_seq at
+        time time_index
+        :param indexed_seq:
+        :type indexed_seq:
+        :param output_constraints:
+        :type output_constraints:
+        :param hidden:
+        :type hidden:
+        :param time_index:
+        :type time_index:
+        :param volatile:
+        :type volatile:
+        :return:
+        :rtype:
+        """
+        if time_index == -1:
+            time_slice = Variable(
+                torch.zeros(1, 1, self.num_features).cuda(), volatile=volatile)
+        else:
+            time_slice = Variable(torch.FloatTensor(
+                to_onehot(indexed_seq[time_index],
+                          num_indexes=self.num_features)[None, None,
+                :]).cuda(),
+                                  volatile=volatile)
+        constraint = output_constraints[time_index + 1][None, :, :]
+        time_slice_cat = torch.cat((time_slice, constraint), 2)
+        input = time_slice_cat
+        output_gen, hidden = self.lstm_generation(input, hidden)
+        return output_gen, hidden
 
 
 def comparison_same_model(constraint_model: ConstraintModel,
