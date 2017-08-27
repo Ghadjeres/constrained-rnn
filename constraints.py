@@ -1,8 +1,9 @@
 from constraints.constraint_model import ConstraintModel
-from constraints.data_utils import NO_CONSTRAINT
+from constraints.data_utils import NO_CONSTRAINT, get_tables
 from constraints.model_manager import ModelManager
 
 if __name__ == '__main__':
+    tables = get_tables()
     (sequence_length, batch_size, num_features) = (48, 128, 55)
     num_skipped = 23
     batches_per_epoch = 100
@@ -16,7 +17,7 @@ if __name__ == '__main__':
                                  lambda_reg=1e-3)
 
     # load
-    model_manager.load()
+    # model_manager.load()
 
     # train
     # model_manager.train_model(batch_size=batch_size,

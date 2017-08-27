@@ -3,6 +3,7 @@ import pickle
 from pathlib import Path
 
 import numpy as np
+import pandas as pd
 from music21 import stream, note, duration
 
 SOP_INDEX = 0
@@ -117,6 +118,23 @@ def get_tables(dataset_filepath=BACH_SOP_DATASET):
     (X, voice_ids, index2notes, note2indexes, metadatas) = get_dataset(
         dataset_filepath=dataset_filepath)
     return index2notes, note2indexes
+
+
+def log_preds(all_preds, time_index, log_dir):
+    filepath = Path(log_dir) / 'predictions.csv'
+    with open(filepath, 'a') as f:
+        for model_index, preds in enumerate(all_preds):
+            for note_index, value in enumerate(preds):
+                entry = f'{note_index},' \
+                        f'{time_index},' \
+                        f'{value},' \
+                        f'{model_index}\n'
+                f.write(entry)
+        f.flush()
+
+
+def plot_csv_preds(filepath):
+    csv = pd.read_csv(filepath, delimiter=',')
 
 
 def generator(batch_size,

@@ -278,6 +278,95 @@ class ConstraintModel(nn.Module):
                 indexed_seq[time_index + 1] = new_pitch_index
         return indexed_seq[padding_size:-padding_size]
 
+    def _comparison(self, indexed_seqs,
+                    padding_size,
+                    log_dir):
+        """
+        Comparison between the constrained and unconstrained models
+        indexed_seqs contains (indexed_seq_contraint,
+        indexed_seq_no_constraint)
+        pitches are sampled using the first constraint sequence
+
+
+        :param indexed_seqs:
+        :type indexed_seqs:
+        :param padding_size:
+        :type padding_size:
+        :return:
+        :rtype:
+        """
+        self.eval()
+        sequence_length = len(indexed_seqs[0])
+        seqs_constraints = [chorale_to_onehot(
+            chorale=[indexed_seq],
+            num_pitches=[num_pitches + 1],
+            time_major=False
+        )[:, None, :]
+                            for indexed_seq in indexed_seqs]
+        # used during generation
+        indexed_seq = indexed_seqs[0]
+        # convert seq_constraints to Variable
+        seqs_constraints = [
+            Variable(torch.Tensor(seq_constraints).cuda(),
+                     volatile=True)
+            for seq_constraints in seqs_constraints]
+
+        # constraints:
+        outputs_constraints = [self.compute_constraints(seq_constraints,
+                                                        batch_size=1,
+                                                        volatile=True)
+                               for seq_constraints in seqs_constraints]
+
+        # generation:
+
+        # hidden init
+        hiddens = [(Variable(torch.rand(self.num_layers, 1,
+                                        self.num_lstm_generation_units).cuda(),
+                             volatile=True),
+                    Variable(torch.rand(self.num_layers, 1,
+                                        self.num_lstm_generation_units).cuda(),
+                             volatile=True))
+                   for _ in outputs_constraints
+                   ]
+
+        for time_index in range(-1, sequence_length - 1):
+            output_gen_and_hiddens = [
+                self.one_step_generation(indexed_seq,
+                                         outputs_constraints[model_index],
+                                         hiddens[model_index],
+                                         time_index,
+                                         volatile=True)
+                for model_index in range(len(indexed_seqs))
+            ]
+            outputs_gen = [output_gen_and_hidden[0] for
+                           output_gen_and_hidden in output_gen_and_hiddens]
+            hiddens = [output_gen_and_hidden[1] for
+                       output_gen_and_hidden in output_gen_and_hiddens]
+            if sequence_length - padding_size > time_index >= padding_size - 1:
+                # distributed NN on output
+                # only first time index is used
+
+                all_weights = [self.weights_from_output_gen_time_slice(
+                    output_gen[0]
+                ) for output_gen in outputs_gen]
+
+                # compute predictions
+                all_preds = [F.softmax(weights)
+                             for weights in all_weights]
+
+                # first batch element
+                all_preds = [preds[0].data.cpu().numpy()
+                             for preds in all_preds]
+
+                log_preds(all_preds=all_preds,
+                          time_index=time_index,
+                          log_dir=log_dir)
+                # sample using the first element
+                new_pitch_index = np.random.choice(np.arange(num_pitches),
+                                                   p=all_preds[0])
+                indexed_seq[time_index + 1] = new_pitch_index
+        return indexed_seq[padding_size:-padding_size]
+
     def one_step_generation(self, indexed_seq, output_constraints, hidden,
                             time_index, volatile=False):
         """

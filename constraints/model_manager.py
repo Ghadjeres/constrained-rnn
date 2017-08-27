@@ -1,12 +1,14 @@
+from datetime import datetime
 from itertools import islice
 
+import os
 import torch
 from torch.autograd import Variable
 from tqdm import tqdm
 
 from .constraint_model import ConstraintModel
 from .data_utils import generator, get_tables, SOP_INDEX, NO_CONSTRAINT, \
-    num_pitches, indexed_seq_to_score, START_SYMBOL, END_SYMBOL
+    num_pitches, indexed_seq_to_score, START_SYMBOL, END_SYMBOL, PACKAGE_DIR
 from .loss import mean_crossentropy_loss, accuracy
 from .optimizers import optimizer_from_name
 
@@ -166,5 +168,41 @@ class ModelManager:
             score = indexed_seq_to_score(result_indexed_seq,
                                          index2note,
                                          note2index)
+            score.show()
+        return result_indexed_seq
+
+    def compare(self, ascii_seq_constraint, padding_size=16, show=False):
+        # padding
+        ascii_seq_constraint = ([START_SYMBOL] * padding_size +
+                                ascii_seq_constraint +
+                                [END_SYMBOL] * padding_size
+                                )
+        ascii_seq_no_constraint = ([START_SYMBOL] * padding_size +
+                                   [NO_CONSTRAINT] * len(
+                                       ascii_seq_constraint) +
+                                   [END_SYMBOL] * padding_size
+                                   )
+
+        indexed_seqs = [ascii_to_index(ascii_seq)
+                        for ascii_seq in (ascii_seq_constraint,
+                                          ascii_seq_no_constraint)
+                        ]
+
+        date_start = (datetime.now().isoformat(timespec='seconds')
+                      .replace(':', '_')
+                      .replace('-', '_'))
+        log_dir = PACKAGE_DIR / 'results' / date_start
+        if not os.path.exists(log_dir):
+            os.mkdir(log_dir)
+        result_indexed_seq = self.model._comparison(indexed_seqs,
+                                                    padding_size=padding_size,
+                                                    log_dir=log_dir)
+        index2note, note2index = [t[SOP_INDEX] for t in get_tables()]
+        score = indexed_seq_to_score(result_indexed_seq,
+                                     index2note,
+                                     note2index)
+        score.write('xml',
+                    fp=log_dir / 'generated_sequence.xml')
+        if show:
             score.show()
         return result_indexed_seq
