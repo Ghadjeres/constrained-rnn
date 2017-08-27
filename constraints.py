@@ -17,7 +17,7 @@ if __name__ == '__main__':
                                  lambda_reg=1e-3)
 
     # load
-    # model_manager.load()
+    model_manager.load()
 
     # train
     # model_manager.train_model(batch_size=batch_size,
@@ -29,11 +29,39 @@ if __name__ == '__main__':
     #                           plot=True)
 
 
+    # unfilled_seq = (
+    #     ['F4'] + [NO_CONSTRAINT] * 15 +
+    #     [NO_CONSTRAINT] * 16 +
+    #     ['F#4'] + [NO_CONSTRAINT] * 15 +
+    #     ['E-5'] + [NO_CONSTRAINT] * 15
+    # )
+
+    # unfilled_seq = (
+    #     ['C4'] + [NO_CONSTRAINT] * 15 +
+    #     [NO_CONSTRAINT] * 16 +
+    #     ['D4'] + [NO_CONSTRAINT] * 15 +
+    #     ['C#4'] + [NO_CONSTRAINT] * 15 +
+    #     [NO_CONSTRAINT] * 16
+    # )
     unfilled_seq = (
-        ['F4'] + [NO_CONSTRAINT] * 15 +
+        ['C4'] + [NO_CONSTRAINT] * 15 +
         [NO_CONSTRAINT] * 16 +
-        ['F#4'] + [NO_CONSTRAINT] * 15 +
-        ['E-5'] + [NO_CONSTRAINT] * 15
+        ['D5'] + [NO_CONSTRAINT] * 15 +
+        ['C#4'] + [NO_CONSTRAINT] * 15 +
+        [NO_CONSTRAINT] * 8 +
+        ['G4'] + ['__'] * 7
+    )
+
+    unfilled_seq = (
+        ['C4'] + [NO_CONSTRAINT] * 15 +
+        [NO_CONSTRAINT] * 16 +
+        ['E-5'] + [NO_CONSTRAINT] * 15 +
+        ['A-5'] + [NO_CONSTRAINT] * 15 +
+        [NO_CONSTRAINT] * 16 +
+        ['C4'] + [NO_CONSTRAINT] * 15 +
+        [NO_CONSTRAINT] * 8 +
+        ['C5'] + ['__'] * 7
+
     )
     # model_manager.fill(unfilled_seq,
     #                    show=True)

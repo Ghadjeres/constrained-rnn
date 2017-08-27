@@ -173,15 +173,16 @@ class ModelManager:
 
     def compare(self, ascii_seq_constraint, padding_size=16, show=False):
         # padding
-        ascii_seq_constraint = ([START_SYMBOL] * padding_size +
-                                ascii_seq_constraint +
-                                [END_SYMBOL] * padding_size
-                                )
         ascii_seq_no_constraint = ([START_SYMBOL] * padding_size +
                                    [NO_CONSTRAINT] * len(
                                        ascii_seq_constraint) +
                                    [END_SYMBOL] * padding_size
                                    )
+
+        ascii_seq_constraint = ([START_SYMBOL] * padding_size +
+                                ascii_seq_constraint +
+                                [END_SYMBOL] * padding_size
+                                )
 
         indexed_seqs = [ascii_to_index(ascii_seq)
                         for ascii_seq in (ascii_seq_constraint,

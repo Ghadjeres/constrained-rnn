@@ -133,10 +133,6 @@ def log_preds(all_preds, time_index, log_dir):
         f.flush()
 
 
-def plot_csv_preds(filepath):
-    csv = pd.read_csv(filepath, delimiter=',')
-
-
 def generator(batch_size,
               timesteps,
               phase: str = 'all',

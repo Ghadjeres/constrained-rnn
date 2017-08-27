@@ -8,7 +8,8 @@ import torch.nn.functional as F
 from torch.autograd import Variable
 from tqdm import tqdm
 
-from .data_utils import MODELS_DIR, chorale_to_onehot, num_pitches, to_onehot
+from .data_utils import MODELS_DIR, chorale_to_onehot, num_pitches, to_onehot, \
+    log_preds
 
 
 class ConstraintModel(nn.Module):
