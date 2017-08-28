@@ -167,7 +167,8 @@ class ModelManager:
             score.show()
         return result_indexed_seq
 
-    def compare(self, ascii_seq_constraint, padding_size=16, show=False):
+    def compare(self, ascii_seq_constraint, padding_size=16, show=False,
+                temperature=None):
         # padding
         ascii_seq_no_constraint = ([START_SYMBOL] * padding_size +
                                    [NO_CONSTRAINT] * len(
@@ -193,7 +194,8 @@ class ModelManager:
             os.mkdir(log_dir)
         result_indexed_seq = self.model._comparison(indexed_seqs,
                                                     padding_size=padding_size,
-                                                    log_dir=log_dir)
+                                                    log_dir=log_dir,
+                                                    temperature=temperature)
         index2note, note2index = [t[SOP_INDEX] for t in get_tables()]
         score = indexed_seq_to_score(result_indexed_seq,
                                      index2note,

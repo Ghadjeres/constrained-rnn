@@ -1,15 +1,21 @@
-import pickle
-
-import matplotlib.pyplot as plt
 import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch.autograd import Variable
-from tqdm import tqdm
 
 from .data_utils import MODELS_DIR, chorale_to_onehot, num_pitches, to_onehot, \
     log_preds, ascii_to_index
+
+
+def apply_temperature(preds, temperature):
+    if not temperature:
+        return preds
+    else:
+        log_p_beta = np.log(preds) * temperature
+        exp_beta = np.exp(log_p_beta)
+        normalizer = np.sum(exp_beta) + 1e-10
+        return exp_beta / normalizer
 
 
 class ConstraintModel(nn.Module):
@@ -277,7 +283,8 @@ class ConstraintModel(nn.Module):
 
     def _comparison(self, indexed_seqs,
                     padding_size,
-                    log_dir):
+                    log_dir,
+                    temperature=None):
         """
         Comparison between the constrained and unconstrained models
         indexed_seqs contains (indexed_seq_contraint,
@@ -358,9 +365,13 @@ class ConstraintModel(nn.Module):
                 log_preds(all_preds=all_preds,
                           time_index=time_index,
                           log_dir=log_dir)
+
                 # sample using the first element
+                next_note_preds = apply_temperature(all_preds[0],
+                                                    temperature=temperature)
+
                 new_pitch_index = np.random.choice(np.arange(num_pitches),
-                                                   p=all_preds[0])
+                                                   p=next_note_preds)
                 indexed_seq[time_index + 1] = new_pitch_index
         return indexed_seq[padding_size:-padding_size]
 
