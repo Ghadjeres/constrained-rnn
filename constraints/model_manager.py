@@ -1,24 +1,19 @@
+import os
 from datetime import datetime
 from itertools import islice
 
-import os
+import numpy as np
 import torch
+from matplotlib import pyplot as plt
 from torch.autograd import Variable
 from tqdm import tqdm
 
 from .constraint_model import ConstraintModel
 from .data_utils import generator, get_tables, SOP_INDEX, NO_CONSTRAINT, \
-    num_pitches, indexed_seq_to_score, START_SYMBOL, END_SYMBOL, PACKAGE_DIR
+    indexed_seq_to_score, START_SYMBOL, END_SYMBOL, PACKAGE_DIR, \
+    ascii_to_index, are_constraints_enforced
 from .loss import mean_crossentropy_loss, accuracy
 from .optimizers import optimizer_from_name
-
-
-def ascii_to_index(ascii_seq):
-    index2notes, note2indexes = get_tables()
-    indexed_seq = [note2indexes[SOP_INDEX][note]
-                   if note != NO_CONSTRAINT else num_pitches
-                   for note in ascii_seq]
-    return indexed_seq
 
 
 class ModelManager:
@@ -153,7 +148,7 @@ class ModelManager:
                 fig.canvas.draw()
                 plt.pause(0.001)
 
-    def fill(self, ascii_seq, padding_size=16, show=False):
+    def fill(self, ascii_seq, padding_size=16, show=False, trim=True):
         # padding
         ascii_seq = ([START_SYMBOL] * padding_size +
                      ascii_seq +
@@ -161,7 +156,8 @@ class ModelManager:
                      )
         indexed_seq = ascii_to_index(ascii_seq)
         result_indexed_seq = self.model._fill(indexed_seq,
-                                              padding_size=padding_size)
+                                              padding_size=padding_size,
+                                              trim=trim)
         if show:
             index2note, note2index = [t[SOP_INDEX] for t in get_tables()]
             print(result_indexed_seq)
@@ -192,7 +188,7 @@ class ModelManager:
         date_start = (datetime.now().isoformat(timespec='seconds')
                       .replace(':', '_')
                       .replace('-', '_'))
-        log_dir = PACKAGE_DIR / 'results' / date_start
+        log_dir = PACKAGE_DIR / 'results' / 'generations' / date_start
         if not os.path.exists(log_dir):
             os.mkdir(log_dir)
         result_indexed_seq = self.model._comparison(indexed_seqs,
@@ -207,3 +203,87 @@ class ModelManager:
         if show:
             score.show()
         return result_indexed_seq
+
+    def proba_ratios(self, ascii_seq_constraint,
+                     padding_size,
+                     num_points,
+                     show=False):
+        self.model.eval()
+        index2notes, note2indexes = get_tables()
+        # padding
+        pad_ascii_seq_no_constraint = ([START_SYMBOL] * padding_size +
+                                       [NO_CONSTRAINT] * len(
+                                           ascii_seq_constraint) +
+                                       [END_SYMBOL] * padding_size
+                                       )
+
+        pad_ascii_seq_constraint = ([START_SYMBOL] * padding_size +
+                                    ascii_seq_constraint +
+                                    [END_SYMBOL] * padding_size
+                                    )
+        # compute constraints
+        output_no_constraints = self.model.compute_constraints(
+            pad_ascii_seq_no_constraint,
+            batch_size=1,
+            volatile=True,
+            from_ascii=True
+        )
+        output_constraints = self.model.compute_constraints(
+            pad_ascii_seq_constraint,
+            batch_size=1,
+            volatile=True,
+            from_ascii=True
+        )
+
+        x = []
+        y = []
+        all_constraints_enforced = []
+        for i in tqdm(range(num_points)):
+            seq_gen = self.fill(ascii_seq=ascii_seq_constraint,
+                                padding_size=padding_size,
+                                show=False,
+                                trim=False)
+            probas_constraint = self.model.evaluate_proba_(seq_gen,
+                                                           output_constraints=output_constraints,
+                                                           padding_size=padding_size)
+            probas_no_constraint = self.model.evaluate_proba_(seq_gen,
+                                                              output_constraints=output_no_constraints,
+                                                              padding_size=padding_size)
+
+            seq_gen_ascii = [index2notes[SOP_INDEX][i] for i in seq_gen[
+                                                                padding_size:
+                                                                -padding_size]]
+            enforced_constraints = are_constraints_enforced(seq_gen_ascii,
+                                                            ascii_seq_constraint)
+
+            logprobas_constraint = np.sum(np.log(probas_constraint))
+            logprobas_no_constraint = np.sum(np.log(probas_no_constraint))
+
+            x.append(logprobas_no_constraint)
+            y.append(logprobas_constraint)
+            all_constraints_enforced.append(enforced_constraints)
+
+        # plot
+        if show:
+            plt.clf()
+            plt.plot(x, y, 'o')
+            plt.show()
+
+        date_start = (datetime.now().isoformat(timespec='seconds')
+                      .replace(':', '_')
+                      .replace('-', '_'))
+        csv_filepath = PACKAGE_DIR / 'results' / 'ratios' / (date_start +
+                                                             '.csv')
+        txt_filepath = PACKAGE_DIR / 'results' / 'ratios' / (date_start +
+                                                             '.txt')
+        with open(csv_filepath, 'w') as f:
+            f.write(f'no_constraint,constraint,'
+                    f'num_enforced_constraints\n')
+            for i in range(len(x)):
+                f.write(f'{x[i]},'
+                        f'{y[i]},'
+                        f'{enforced_constraints}\n')
+        with open(txt_filepath, 'w') as f:
+            f.write(f'Constraints: {ascii_seq_constraint}\n')
+            f.write(f'Number of points: {num_points}\n')
+            f.write(f'Sequence length: {len(ascii_seq_constraint)}\n')

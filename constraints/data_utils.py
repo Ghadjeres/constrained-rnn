@@ -3,7 +3,6 @@ import pickle
 from pathlib import Path
 
 import numpy as np
-import pandas as pd
 from music21 import stream, note, duration
 
 SOP_INDEX = 0
@@ -118,6 +117,25 @@ def get_tables(dataset_filepath=BACH_SOP_DATASET):
     (X, voice_ids, index2notes, note2indexes, metadatas) = get_dataset(
         dataset_filepath=dataset_filepath)
     return index2notes, note2indexes
+
+
+def are_constraints_enforced(ascii_seq_gen, ascii_constraints):
+    assert len(ascii_seq_gen) == len(ascii_constraints)
+    count = 0
+    for i, (n, constraint) in enumerate(zip(ascii_seq_gen,
+                                             ascii_constraints)):
+        if n == constraint:
+            count += 1
+    return count
+
+
+
+def ascii_to_index(ascii_seq):
+    index2notes, note2indexes = get_tables()
+    indexed_seq = [note2indexes[SOP_INDEX][note]
+                   if note != NO_CONSTRAINT else num_pitches
+                   for note in ascii_seq]
+    return indexed_seq
 
 
 def log_preds(all_preds, time_index, log_dir):

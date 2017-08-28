@@ -29,12 +29,7 @@ if __name__ == '__main__':
     #                           plot=True)
 
 
-    # unfilled_seq = (
-    #     ['F4'] + [NO_CONSTRAINT] * 15 +
-    #     [NO_CONSTRAINT] * 16 +
-    #     ['F#4'] + [NO_CONSTRAINT] * 15 +
-    #     ['E-5'] + [NO_CONSTRAINT] * 15
-    # )
+
 
     # unfilled_seq = (
     #     ['C4'] + [NO_CONSTRAINT] * 15 +
@@ -63,25 +58,20 @@ if __name__ == '__main__':
         ['C5'] + ['__'] * 7
 
     )
+
+    # unfilled_seq = (
+    #     ['C4'] + [NO_CONSTRAINT] * 15 +
+    #     [NO_CONSTRAINT] * 16 +
+    #     ['C5'] + [NO_CONSTRAINT] * 15
+    # )
     # model_manager.fill(unfilled_seq,
     #                    show=True)
     model_manager.compare(unfilled_seq,
                           show=True)
 
-    # simple model:
-    # simple_model = SimpleLSTM(num_features=num_features, num_units_linear=256, num_layers=2)
-    # optimizer = torch.optim.Adam(simple_model.parameters())
-    # simple_model.cuda()
-    # simple_model.load()
-    # simple_model.train_model(batches_per_epoch=batches_per_epoch, num_epochs=100, plot=True)
-    # simple_model.save()
+    model_manager.proba_ratios(unfilled_seq,
+                               padding_size=16,
+                               num_points=1000,
+                               show=False)
 
-    # constraint_model.generate_bis(sequence_length=120)
-    # constraint_model.generate(sequence_length=120)
 
-    # constraint_model.load()
-    # simple_model.load()
-
-    # comparison_same_model(constraint_model, sequence_length=100)
-    plot_proba_ratios(constraint_model, num_points=200,
-                      csv_filepath='results/proba_ratios_4constraint.csv')
