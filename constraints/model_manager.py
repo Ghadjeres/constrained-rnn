@@ -11,7 +11,7 @@ from tqdm import tqdm
 from .constraint_model import ConstraintModel
 from .data_utils import generator, get_tables, SOP_INDEX, NO_CONSTRAINT, \
     indexed_seq_to_score, START_SYMBOL, END_SYMBOL, PACKAGE_DIR, \
-    ascii_to_index, are_constraints_enforced
+    ascii_to_index, are_constraints_enforced, CUDA_ENABLED, wrap_cuda
 from .loss import mean_crossentropy_loss, accuracy
 from .optimizers import optimizer_from_name
 
@@ -22,7 +22,8 @@ class ModelManager:
                  lr=1e-3,
                  lambda_reg=1e-3):
         self.model = model
-        self.model.cuda()
+        if CUDA_ENABLED:
+            self.model.cuda()
 
         self.optimizer = optimizer_from_name(optimizer_name, lr=lr)(
             self.model.parameters())
@@ -49,9 +50,9 @@ class ModelManager:
             input_seq_index = next_element['input_seq_index']
             # todo requires_grad?
             input_seq, constraint, input_seq_index = (
-                Variable(torch.FloatTensor(input_seq).cuda()),
-                Variable(torch.FloatTensor(constraint).cuda()),
-                Variable(torch.LongTensor(input_seq_index).cuda())
+                Variable(wrap_cuda(torch.FloatTensor(input_seq))),
+                Variable(wrap_cuda(torch.FloatTensor(constraint))),
+                Variable(wrap_cuda(torch.LongTensor(input_seq_index)))
             )
             self.optimizer.zero_grad()
             output = self.model((input_seq, constraint))

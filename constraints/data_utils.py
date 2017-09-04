@@ -5,6 +5,9 @@ from pathlib import Path
 import numpy as np
 from music21 import stream, note, duration
 
+
+CUDA_ENABLED = False
+
 SOP_INDEX = 0
 BACH_SOP_DATASET = '/home/gaetan/Projets/Python/workspace/DeepPermutations' \
                    '/deepPermutations/datasets/transpose/bach_sop.pickle'
@@ -18,6 +21,14 @@ SUBDIVISION = 4
 num_pitches = 55
 PACKAGE_DIR = Path(os.path.realpath(os.path.dirname(__file__)))
 MODELS_DIR = PACKAGE_DIR / 'models'
+
+
+def wrap_cuda(tensor):
+    if CUDA_ENABLED:
+        return tensor.cuda()
+    else:
+        return tensor
+
 
 
 def standard_note(note_or_rest_string):

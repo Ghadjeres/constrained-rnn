@@ -99,4 +99,5 @@ logs/
 Supprimerait .idea/vcs.xml
 .idea/
 constraints/models/
-constraints/results/
+constraints/results/generations/
+constraints/results/ratios/

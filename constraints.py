@@ -11,7 +11,8 @@ if __name__ == '__main__':
 
     constraint_model = ConstraintModel(num_features=num_features,
                                        num_units_linear=256,
-                                       num_layers=2)
+                                       num_layers=2,
+                                       )
     model_manager = ModelManager(model=constraint_model,
                                  optimizer_name='adam',
                                  lr=1e-3,
@@ -52,13 +53,12 @@ if __name__ == '__main__':
     unfilled_seq = (
         ['C4'] + [NO_CONSTRAINT] * 15 +
         [NO_CONSTRAINT] * 16 +
-        ['E-5'] + [NO_CONSTRAINT] * 15 +
+        ['E5'] + [NO_CONSTRAINT] * 15 +
         ['A5'] + [NO_CONSTRAINT] * 15 +
         [NO_CONSTRAINT] * 16 +
-        ['C4'] + [NO_CONSTRAINT] * 15 +
+        ['F#4'] + [NO_CONSTRAINT] * 15 +
         [NO_CONSTRAINT] * 8 +
-        ['C5'] + ['__'] * 7
-
+        ['B-4'] + ['__'] * 7
     )
 
     # unfilled_seq = (
@@ -69,7 +69,7 @@ if __name__ == '__main__':
     # model_manager.fill(unfilled_seq,
     #                    show=True)
     model_manager.compare(unfilled_seq,
-                          show=True, temperature=1.1)
+                          show=True, temperature=1.0)
 
     # model_manager.proba_ratios(unfilled_seq,
     #                            padding_size=16,
