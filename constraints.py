@@ -12,6 +12,7 @@ if __name__ == '__main__':
     constraint_model = ConstraintModel(num_features=num_features,
                                        num_units_linear=256,
                                        num_layers=2,
+                                       dropout_input_prob=0.5
                                        )
     model_manager = ModelManager(model=constraint_model,
                                  optimizer_name='adam',
@@ -26,11 +27,9 @@ if __name__ == '__main__':
                               batches_per_epoch=batches_per_epoch,
                               sequence_length=sequence_length,
                               num_skipped=num_skipped,
-                              num_epochs=500,
+                              num_epochs=200,
                               save_every=2,
-                              plot=True)
-
-
+                              plot=False)
 
 
     # unfilled_seq = (
@@ -50,17 +49,38 @@ if __name__ == '__main__':
     #     ['G4'] + ['__'] * 7
     # )
     #
-    unfilled_seq = (
-        ['C4'] + [NO_CONSTRAINT] * 15 +
-        [NO_CONSTRAINT] * 16 +
-        ['E5'] + [NO_CONSTRAINT] * 15 +
-        ['A5'] + [NO_CONSTRAINT] * 15 +
-        [NO_CONSTRAINT] * 16 +
-        ['F#4'] + [NO_CONSTRAINT] * 15 +
-        [NO_CONSTRAINT] * 8 +
-        ['B-4'] + ['__'] * 7
-    )
+    # unfilled_seq = (
+    #     ['C4'] + [NO_CONSTRAINT] * 15 +
+    #     [NO_CONSTRAINT] * 16 +
+    #     ['E-5'] + [NO_CONSTRAINT] * 15 +
+    #     [NO_CONSTRAINT] * 16 +
+    #     ['E-5'] + [NO_CONSTRAINT] * 15 +
+    #     [NO_CONSTRAINT] * 16 +
+    #     ['D4'] + [NO_CONSTRAINT] * 15 +
+    #     [NO_CONSTRAINT] * 8 +
+    #     ['D5'] + ['__'] * 7
+    # )
 
+    # unfilled_seq = (
+    #     ['D4'] + [NO_CONSTRAINT] * 15 +
+    #     [NO_CONSTRAINT] * 16 +
+    #     ['D4'] + [NO_CONSTRAINT] * 15 +
+    #     ['D5'] + [NO_CONSTRAINT] * 15 +
+    #     ['D4'] + [NO_CONSTRAINT] * 15 +
+    #     [NO_CONSTRAINT] * 8 +
+    #     ['A4'] + ['__'] * 7
+    # )
+
+
+    unfilled_seq = (
+        ['D4'] + [NO_CONSTRAINT] + ['F#4'] + [NO_CONSTRAINT] * 13 +
+        [NO_CONSTRAINT] * 16 +
+        ['E-4'] + [NO_CONSTRAINT] * 15 +
+        ['D5'] + [NO_CONSTRAINT] * 15 +
+        ['D4'] + [NO_CONSTRAINT] * 15 +
+        [NO_CONSTRAINT] * 8 +
+        ['A4'] + ['__'] * 7
+    )
     # unfilled_seq = (
     #     ['C4'] + [NO_CONSTRAINT] * 15 +
     #     [NO_CONSTRAINT] * 16 +
@@ -69,7 +89,7 @@ if __name__ == '__main__':
     # model_manager.fill(unfilled_seq,
     #                    show=True)
     model_manager.compare(unfilled_seq,
-                          show=True, temperature=1.0)
+                          show=True, temperature=None)
 
     # model_manager.proba_ratios(unfilled_seq,
     #                            padding_size=16,

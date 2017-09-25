@@ -5,7 +5,7 @@ import torch.nn.functional as F
 from torch.autograd import Variable
 
 from .data_utils import MODELS_DIR, chorale_to_onehot, num_pitches, to_onehot, \
-    log_preds, ascii_to_index
+    log_preds, ascii_to_index, wrap_cuda
 
 
 def apply_temperature(preds, temperature):
@@ -16,7 +16,6 @@ def apply_temperature(preds, temperature):
         exp_beta = np.exp(log_p_beta)
         normalizer = np.sum(exp_beta) + 1e-10
         return exp_beta / normalizer
-
 
 
 class ConstraintModel(nn.Module):
@@ -111,7 +110,8 @@ class ConstraintModel(nn.Module):
              seq[:seq_length - 1, :, :]], 0)
 
         input = torch.cat([offset_seq, output_constraints], 2)
-        input = self.dropout_input(input)
+
+        # input = self.dropout_input(input)
         output_gen, hidden = self.lstm_generation(input, hidden)
 
         # distributed NN on output
@@ -174,7 +174,10 @@ class ConstraintModel(nn.Module):
         print(f'Model {self.__repr__()} saved')
 
     def load(self):
-        self.load_state_dict(torch.load(self.filepath))
+        self.load_state_dict(torch.load(self.filepath,
+                                        map_location=
+                                        lambda storage, location: storage)
+                             )
         print(f'Model {self.__repr__()} loaded')
 
     def evaluate_proba_(self, indexed_seq,
@@ -196,10 +199,10 @@ class ConstraintModel(nn.Module):
         sequence_length = len(indexed_seq)
         # # constraints:
         hidden = (Variable(wrap_cuda(torch.rand(self.num_layers, 1,
-                                      self.num_lstm_constraints_units)),
+                                                self.num_lstm_constraints_units)),
                            volatile=True),
                   Variable(wrap_cuda(torch.rand(self.num_layers, 1,
-                                      self.num_lstm_constraints_units)),
+                                                self.num_lstm_constraints_units)),
                            volatile=True))
 
         # generation:
@@ -252,10 +255,10 @@ class ConstraintModel(nn.Module):
 
         # hidden init
         hidden = (Variable(wrap_cuda(torch.rand(self.num_layers, 1,
-                                      self.num_lstm_generation_units)),
+                                                self.num_lstm_generation_units)),
                            volatile=True),
                   Variable(wrap_cuda(torch.rand(self.num_layers, 1,
-                                      self.num_lstm_generation_units)),
+                                                self.num_lstm_generation_units)),
                            volatile=True))
 
         for time_index in range(-1, sequence_length - 1):
@@ -327,10 +330,10 @@ class ConstraintModel(nn.Module):
 
         # hidden init
         hiddens = [(Variable(wrap_cuda(torch.rand(self.num_layers, 1,
-                                        self.num_lstm_generation_units)),
+                                                  self.num_lstm_generation_units)),
                              volatile=True),
                     Variable(wrap_cuda(torch.rand(self.num_layers, 1,
-                                        self.num_lstm_generation_units)),
+                                                  self.num_lstm_generation_units)),
                              volatile=True))
                    for _ in outputs_constraints
                    ]

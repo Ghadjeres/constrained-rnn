@@ -63,14 +63,14 @@ def accuracy(output_seq, targets_seq, num_skipped=0, constraint=None):
 
     for t in range(num_skipped, seq_length - num_skipped):
         max_values, max_indices = output_seq[t].max(1)
-        correct = max_indices[:, 0] == targets_seq[t]
+        correct = max_indices == targets_seq[t]
         sum += correct.data.sum() / batch_size
 
-        if constraint:
+        if constraint is not None:
             is_constrained = constraint[t, :, -1] < 0.1
             num_constraint += is_constrained.data.sum()
             sum_constraint += (
-                (max_indices[:, 0] == targets_seq[
+                (max_indices == targets_seq[
                     t]) * is_constrained).data.sum()
 
     return (sum / (seq_length - 2 * num_skipped),

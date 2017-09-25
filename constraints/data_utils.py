@@ -5,12 +5,9 @@ from pathlib import Path
 import numpy as np
 from music21 import stream, note, duration
 
-
-CUDA_ENABLED = False
+CUDA_ENABLED = True
 
 SOP_INDEX = 0
-BACH_SOP_DATASET = '/home/gaetan/Projets/Python/workspace/DeepPermutations' \
-                   '/deepPermutations/datasets/transpose/bach_sop.pickle'
 
 START_SYMBOL = 'START'
 END_SYMBOL = 'END'
@@ -21,6 +18,7 @@ SUBDIVISION = 4
 num_pitches = 55
 PACKAGE_DIR = Path(os.path.realpath(os.path.dirname(__file__)))
 MODELS_DIR = PACKAGE_DIR / 'models'
+BACH_SOP_DATASET = PACKAGE_DIR / 'datasets' / 'bach_sop.pickle'
 
 
 def wrap_cuda(tensor):
@@ -28,7 +26,6 @@ def wrap_cuda(tensor):
         return tensor.cuda()
     else:
         return tensor
-
 
 
 def standard_note(note_or_rest_string):
@@ -134,11 +131,10 @@ def are_constraints_enforced(ascii_seq_gen, ascii_constraints):
     assert len(ascii_seq_gen) == len(ascii_constraints)
     count = 0
     for i, (n, constraint) in enumerate(zip(ascii_seq_gen,
-                                             ascii_constraints)):
+                                            ascii_constraints)):
         if n == constraint:
             count += 1
     return count
-
 
 
 def ascii_to_index(ascii_seq):
